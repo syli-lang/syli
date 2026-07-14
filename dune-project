@@ -1,0 +1,27 @@
+(lang dune 3.24)
+(using menhir 3.0)
+
+(name syli)
+
+(generate_opam_files true)
+
+(source
+ (github username/reponame))
+
+(authors "Author Name <author@example.com>")
+
+(maintainers "Maintainer Name <maintainer@example.com>")
+
+(license LICENSE)
+
+(documentation https://url/to/documentation)
+
+(package
+ (name syli)
+ (synopsis "A short synopsis")
+ (description "A longer description")
+ (depends
+  (ocaml (>= 5.5.0))
+  (menhir (>= 3.0)))
+ (tags
+  ("add topics" "to describe" your project)))

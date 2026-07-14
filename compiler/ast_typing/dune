@@ -1,0 +1,3 @@
+(library
+ (name syli_typing)
+ (libraries syli_parsing syli_common))

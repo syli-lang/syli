@@ -1,0 +1,8 @@
+(library
+ (name syli_parsing)
+ (libraries syli_common))
+
+(ocamllex syli_lexer)
+
+(menhir
+ (modules syli_parser))

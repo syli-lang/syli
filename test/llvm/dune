@@ -1,0 +1,6 @@
+(cram
+ (deps
+  ;; Depend on the sylic executable
+  %{bin:sylic}
+  ../../runtime/cmake-build/Debug/libsyliruntime.a)
+ (setup_scripts setup.sh))

@@ -1,0 +1,4 @@
+(cram
+ (deps
+  ;; Depend on the typer executable
+  %{bin:sylic}))

@@ -1,0 +1,20 @@
+--- test_nested_lambda_captures_outer_param
+module Test
+let f = fun (x) : unit ->
+    fun (y) : unit ->
+      x : unit
+
+
+  lambda#30: free_vars={}
+  lambda#31: free_vars={x#1}
+
+--- test_seq_let_binds_for_following_expr
+module Test
+let g = fun () : unit ->
+    {
+      let x = () : unit
+      x : unit
+    }
+
+
+  lambda#44: free_vars={}

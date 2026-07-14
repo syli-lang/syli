@@ -1,0 +1,55 @@
+--- scc_empty_graph
+  graph: []
+  sccs: []
+
+--- scc_single_node
+  graph: [A->{}]
+  sccs: [[A]]
+
+--- scc_self_loop
+  graph: [A->{A}; B->{}]
+  sccs: [[B]; [A]]
+
+--- scc_no_cycle
+  graph: [A->{B}; B->{C}; C->{D}; D->{}]
+  sccs: [[A]; [B]; [C]; [D]]
+
+--- scc_simple_cycle
+  graph: [A->{B}; B->{C}; C->{A}; D->{}]
+  sccs: [[D]; [B, C, A]]
+
+--- scc_two_cycles
+  graph: [A->{B}; B->{A}; C->{D}; D->{C}]
+  sccs: [[D, C]; [B, A]]
+
+--- scc_complex
+  graph: [A->{B}; B->{C}; C->{A,D}; D->{E}; E->{D}]
+  sccs: [[B, C, A]; [E, D]]
+
+--- cyclic_empty_graph
+  graph: []
+  cycles: []
+
+--- cyclic_no_cycle
+  graph: [A->{B}; B->{C}; C->{D}; D->{}]
+  cycles: []
+
+--- cyclic_self_loop
+  graph: [A->{A}; B->{}]
+  cycles: [[A]]
+
+--- cyclic_simple_cycle
+  graph: [A->{B}; B->{C}; C->{A}; D->{}]
+  cycles: [[B, C, A]]
+
+--- cyclic_two_cycles
+  graph: [A->{B}; B->{A}; C->{D}; D->{C}]
+  cycles: [[D, C]; [B, A]]
+
+--- cyclic_mixed
+  graph: [A->{B}; B->{C}; C->{A}; D->{E}; E->{}]
+  cycles: [[B, C, A]]
+
+--- cyclic_complex
+  graph: [A->{B}; B->{C}; C->{A,D}; D->{E}; E->{D}]
+  cycles: [[B, C, A]; [E, D]]

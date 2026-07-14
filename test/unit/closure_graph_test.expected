@@ -1,0 +1,216 @@
+--- test_make_closure_node
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb3
+
+  bb3:
+    %f:(i64, i64 -> i64) = #make_closure {Test.add} () ()
+    return
+end
+
+end
+--- test_make_closure_node: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+  generic_nodes: {}
+
+--- test_make_closure_with_captured
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb8
+
+  bb8:
+    %f:(i64 -> i64) = #make_closure {Test.add} () ( captured_args=[1:i64])
+    return
+end
+
+end
+--- test_make_closure_with_captured: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64]  ret_ty=i64
+  generic_nodes: {}
+
+--- test_chain_make_closure_apply
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb13
+
+  bb13:
+    %c:(i64 -> i64) = #make_closure {Test.add} () ( captured_args=[1:i64])
+    %r:i64 = #call_apply {%c:(i64 -> i64)}  (2:i64)
+    return
+end
+
+end
+--- test_chain_make_closure_apply: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64]  ret_ty=i64
+    node 20: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {}
+
+--- test_partial_apply_closure
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb19
+
+  bb19:
+    %c:(i64, i64 -> i64) = #make_closure {Test.add} () ( captured_args=[1:i64])
+    %p:(i64, i64 -> i64) = #partial_apply {%c:(i64, i64 -> i64)} (2:i64)
+    %r:i64 = #call_apply {%p:(i64, i64 -> i64) as (i64 -> i64)}  (3:i64)
+    return
+end
+
+end
+--- test_partial_apply_closure: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 15: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 20: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {}
+
+--- test_dispatch_edge_weight
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb25
+
+  bb25:
+    %c:(i64, i64 -> i64) = #make_closure {Test.add} () ( captured_args=[1:i64])
+    %p:(i64, i64 -> i64) = #partial_apply {%c:(i64, i64 -> i64)} (2:i64)
+    %r:i64 = #call_apply {%p:(i64, i64 -> i64) as (i64 -> i64)}  (3:i64)
+    return
+end
+
+end
+--- test_dispatch_edge_weight: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 15: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 20: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {}
+
+--- test_node_dispatch_possibilities
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb31
+
+  bb31:
+    %c:(i64, i64 -> i64) = #make_closure {Test.add} () ( captured_args=[1:i64])
+    %p:(i64, i64 -> i64) = #partial_apply {%c:(i64, i64 -> i64)} (2:i64)
+    %r:i64 = #call_apply {%p:(i64, i64 -> i64) as (i64 -> i64)}  (3:i64)
+    return
+end
+
+end
+--- test_node_dispatch_possibilities: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 15: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 20: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {}
+
+--- test_non_generic
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb36
+
+  bb36:
+    %c:(i64 -> i64) = #make_closure {Test.add} () ()
+    %r:i64 = #call_apply {%c:(i64 -> i64)}  (42:i64)
+    return
+end
+
+end
+--- test_non_generic: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64]  ret_ty=i64
+    node 20: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {}
+
+--- test_generic_via_varying_ret_ty
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb41
+
+  bb41:
+    %c:(i64, i64 -> i64) = #make_closure {Test.add} () ()
+    %r1:i64 = #call_apply {%c:(i64, i64 -> i64)}  (3:i64, 4:i64)
+    %r2:f64 = #call_apply {%c:(i64, i64 -> i64) as (f64, f64 -> f64)}  (1:f64, 2:f64)
+    return
+end
+
+end
+--- test_generic_via_varying_ret_ty: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 20: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+    node 30: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=f64
+  generic_nodes: {10, 20, 30}
+
+--- test_generic_via_from_arg_fn
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb46
+
+  bb46:
+    %r:i64 = #call_apply {%f:(i64 -> i64)}  (42:i64)
+    return
+end
+
+end
+--- test_generic_via_from_arg_fn: result
+  node_summaries:
+    node 20: root=From_Arg_Fn(20)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {20}
+
+--- test_generic_via_from_arg_fn_chain
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb52
+
+  bb52:
+    %m:(i64 -> i64) = move(%f:(i64 -> i64))
+    %r:i64 = #call_apply {%m:(i64 -> i64)}  (42:i64)
+    return
+end
+
+end
+--- test_generic_via_from_arg_fn_chain: result
+  node_summaries:
+    node 15: root=From_Arg_Fn(15)  fv_count=0  rem_arg_tys=[i64]  ret_ty=i64
+    node 20: root=From_Arg_Fn(15)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {15, 20}
+
+--- test_cast_dispatch_possibilities
+module Test :
+functions:
+public fn test() -> void:
+  entry: bb59
+
+  bb59:
+    %c:(i64, i64 -> i64) = #make_closure {Test.add} () ()
+    %c1:(f64, i64 -> i64) = cast(%c:(i64, i64 -> i64) as (f64, i64 -> i64))
+    %r1:i64 = #call_apply {%c1:(f64, i64 -> i64)}  (1:f64, 2:i64)
+    %c2:(i64, i64 -> i64) = cast(%c:(i64, i64 -> i64) as (i64, i64 -> i64))
+    %r2:i64 = #call_apply {%c2:(i64, i64 -> i64)}  (3:i64, 4:i64)
+    return
+end
+
+end
+--- test_cast_dispatch_possibilities: result
+  node_summaries:
+    node 10: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 15: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[f64, i64]  ret_ty=i64
+    node 20: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+    node 25: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[i64, i64]  ret_ty=i64
+    node 30: root=Make_closure(Test.add)  fv_count=0  rem_arg_tys=[]  ret_ty=i64
+  generic_nodes: {}

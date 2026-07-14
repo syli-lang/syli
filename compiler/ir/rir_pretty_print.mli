@@ -1,0 +1,14 @@
+val string_of_ir_type : Rir.ir_type -> string
+val string_of_ty : Rir.ty -> string
+val string_of_visibility : Rir.visibility -> string
+val var_to_string : Rir.var -> string
+val operand_to_string : Rir.operand -> string
+val string_of_rvalue : Rir.rvalue -> string
+val string_of_call_target : Rir.call_target -> string
+val string_of_statement : Rir.statement -> string
+val string_of_terminator : Rir.terminator -> string
+val string_of_block : Rir.block -> string
+val string_of_function : Rir.function_rir -> string
+val string_of_ffi_external_function : Rir.ffi_external_function -> string
+val string_of_global_value : Rir.global_value -> string
+val string_of_program : Rir.program_rir -> string

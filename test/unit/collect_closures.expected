@@ -1,0 +1,145 @@
+--- test_empty_program_has_no_lambdas
+module Test
+
+--- test_empty_program_has_no_lambdas: result
+core_closure_analysis {
+  closure_infos =
+  (no lambdas registered)
+}
+
+--- test_toplevel_lambda_registers_decl_id
+module Test
+let f = fun () : unit ->
+    () : unit
+
+
+--- test_toplevel_lambda_registers_decl_id: result
+core_closure_analysis {
+  closure_infos =
+  { id=2  free_vars={}  lambda(params=[]) }
+}
+
+--- test_toplevel_lambda_registers_expr_id
+module Test
+let f = fun () : unit ->
+    () : unit
+
+
+--- test_toplevel_lambda_registers_expr_id: result
+core_closure_analysis {
+  closure_infos =
+  { id=2  free_vars={}  lambda(params=[]) }
+}
+
+--- test_toplevel_unit_body_has_no_free_vars_on_expr_entry
+module Test
+let f = fun () : unit ->
+    () : unit
+
+
+--- test_toplevel_unit_body_has_no_free_vars_on_expr_entry: result
+core_closure_analysis {
+  closure_infos =
+  { id=2  free_vars={}  lambda(params=[]) }
+}
+
+--- test_param_is_not_free_on_expr_entry
+module Test
+let f = fun (x) : unit ->
+    x : unit
+
+
+--- test_param_is_not_free_on_expr_entry: result
+core_closure_analysis {
+  closure_infos =
+  { id=31  free_vars={}  lambda(params=[x#99]) }
+}
+
+--- test_free_var_is_captured_on_expr_entry
+module Test
+let f = fun () : unit ->
+    y : unit
+
+
+--- test_free_var_is_captured_on_expr_entry: result
+core_closure_analysis {
+  closure_infos =
+  { id=41  free_vars={y#55}  lambda(params=[]) }
+}
+
+--- test_first_lambda_has_no_free_vars
+module Test
+let f1 = fun () : unit ->
+    () : unit
+
+let f2 = fun () : unit ->
+    y : unit
+
+
+--- test_first_lambda_has_no_free_vars: result
+core_closure_analysis {
+  closure_infos =
+  { id=51  free_vars={}  lambda(params=[]) }
+  { id=54  free_vars={y#60}  lambda(params=[]) }
+}
+
+--- test_second_lambda_captures_outer_var
+module Test
+let f1 = fun () : unit ->
+    () : unit
+
+let f2 = fun () : unit ->
+    y : unit
+
+
+--- test_second_lambda_captures_outer_var: result
+core_closure_analysis {
+  closure_infos =
+  { id=51  free_vars={}  lambda(params=[]) }
+  { id=54  free_vars={y#60}  lambda(params=[]) }
+}
+
+--- test_first_param_is_not_free
+module Test
+let f = fun (a, b) : unit ->
+    {
+      a : unit
+      z : unit
+    }
+
+
+--- test_first_param_is_not_free: result
+core_closure_analysis {
+  closure_infos =
+  { id=63  free_vars={z#72}  lambda(params=[a#70, b#71]) }
+}
+
+--- test_second_param_is_not_free
+module Test
+let f = fun (a, b) : unit ->
+    {
+      a : unit
+      z : unit
+    }
+
+
+--- test_second_param_is_not_free: result
+core_closure_analysis {
+  closure_infos =
+  { id=63  free_vars={z#72}  lambda(params=[a#70, b#71]) }
+}
+
+--- test_non_param_is_free
+module Test
+let f = fun (a, b) : unit ->
+    {
+      a : unit
+      z : unit
+    }
+
+
+--- test_non_param_is_free: result
+core_closure_analysis {
+  closure_infos =
+  { id=63  free_vars={z#72}  lambda(params=[a#70, b#71]) }
+}

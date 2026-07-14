@@ -1,0 +1,30 @@
+# Build artifacts
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+.build_type
+build-*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+bench.log
+compile_commands.json
+
+# Performance data
+perf.data*
+*.perf

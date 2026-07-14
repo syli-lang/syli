@@ -1,0 +1,145 @@
+--- test_build_cfg_chain
+module Test :
+functions:
+public fn __test() -> void:
+  entry: bb1
+
+  bb1:
+
+    goto bb2
+
+  bb2:
+
+    return
+end
+
+end
+  succ[1] = [2]
+  pred[2] = [1]
+
+--- test_build_cfg_switch
+module Test :
+functions:
+public fn __test() -> void:
+  entry: bb1
+
+  bb1:
+
+    switch %__dummy:i64 [0: bb2, 1: bb3 default: bb4]
+
+  bb2:
+
+    return
+
+  bb3:
+
+    return
+
+  bb4:
+
+    return
+end
+
+end
+  succ[1] = [4, 2, 3]
+  pred[2] = [1]
+  pred[3] = [1]
+  pred[4] = [1]
+
+--- test_compute_rpo_bfs_dfs_linear
+module Test :
+functions:
+public fn __test() -> void:
+  entry: bb1
+
+  bb1:
+
+    goto bb2
+
+  bb2:
+
+    goto bb3
+
+  bb3:
+
+    return
+end
+
+end
+  rpo      = [1, 2, 3]
+  rpo_back = [3, 2, 1]
+  bfs      = [1, 2, 3]
+  dfs      = [1, 2, 3]
+  linear   = [1, 2, 3]
+
+--- test_get_block_order
+module Test :
+functions:
+public fn __test() -> void:
+  entry: bb1
+
+  bb1:
+
+    goto bb2
+
+  bb2:
+
+    goto bb3
+
+  bb3:
+
+    return
+end
+
+end
+  rev_postorder      = [1, 2, 3]
+  rev_postorder_back = [3, 2, 1]
+  breadth_first      = [1, 2, 3]
+  depth_first        = [1, 2, 3]
+  linear             = [1, 2, 3]
+
+--- test_bfs_vs_dfs_diamond
+module Test :
+functions:
+public fn __test() -> void:
+  entry: bb1
+
+  bb1:
+
+    cond_br %__dummy:i64, bb2, bb3
+
+  bb2:
+
+    goto bb4
+
+  bb3:
+
+    goto bb4
+
+  bb4:
+
+    return
+end
+
+end
+  bfs = [1, 2, 3, 4]
+  dfs = [1, 2, 4, 3]
+
+--- test_build_block_map
+module Test :
+functions:
+public fn __test() -> void:
+  entry: bb1
+
+  bb1:
+
+    return
+
+  bb2:
+
+    return
+end
+
+end
+  block_map[1] = 1
+  block_map[2] = 2

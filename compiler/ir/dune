@@ -1,0 +1,3 @@
+(library
+ (name syli_ir)
+ (libraries syli_common))

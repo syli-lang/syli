@@ -1,0 +1,13 @@
+(executable
+ (public_name sylic)
+ (name main)
+ (libraries
+  syli_common
+  syli_parsing
+  syli_typing
+  syli_core
+  middle_end
+  syli_ir
+  syli_target_llvm
+  llvm_lir)
+ (modules main lexing parsing typing alpha))

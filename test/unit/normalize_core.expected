@@ -1,0 +1,58 @@
+--- test_toplevel_last_occurrence_keeps_original_name: input
+module Test
+let f = fun () : unit ->
+    () : unit
+
+let f = fun () : unit ->
+    () : unit
+
+
+--- test_toplevel_last_occurrence_keeps_original_name: output
+module Test
+let f#1 = fun () : unit ->
+    () : unit
+
+let f = fun () : unit ->
+    () : unit
+
+
+
+--- test_local_shadowing_renames_and_updates_uses: input
+module Test
+let g = fun (x) : unit ->
+    {
+      let x = x : unit
+      x : unit
+    }
+
+
+--- test_local_shadowing_renames_and_updates_uses: output
+module Test
+let g = fun (x) : unit ->
+    {
+      let x#1 = x : unit
+      x#1 : unit
+    }
+
+
+
+--- test_second_local_shadow_renamed: input
+module Test
+let h = fun () : unit ->
+    {
+      let x = () : unit
+      let x = () : unit
+      x : unit
+    }
+
+
+--- test_second_local_shadow_renamed: output
+module Test
+let h = fun () : unit ->
+    {
+      let x = () : unit
+      let x#1 = () : unit
+      x#1 : unit
+    }
+
+

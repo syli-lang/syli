@@ -1,0 +1,27 @@
+(test
+ (name cyclic_components)
+ (libraries helpers))
+
+(test
+ (name collect_closures)
+ (libraries helpers syli_core))
+
+(test
+ (name closure_analysis)
+ (libraries syli_core))
+
+(test
+ (name normalize_core)
+ (libraries syli_core middle_end))
+
+(test
+ (name cfg)
+ (libraries syli_ir))
+
+(test
+ (name closure_graph_test)
+ (libraries syli_ir middle_end))
+
+(test
+ (name liveness_test)
+ (libraries syli_ir middle_end))

@@ -1,0 +1,67 @@
+--- test_single_block: input
+module Test :
+functions:
+public fn test_single() -> i64:
+  entry: bb10
+
+  bb10:
+    %x:Obj = object_create{size=8:i64 record{fields=1 tag=0 [i64]}}
+    %y:Obj = object_create{size=8:i64 record{fields=1 tag=0 [i64]}}
+    rc_check_release(%x:Obj)
+    rc_check_release(%y:Obj)
+    return
+end
+
+end
+--- test_single_block: live_map
+  stmt 1: live_before={}  live_after={x}
+  stmt 2: live_before={x}  live_after={x, y}
+  stmt 3: live_before={x, y}  live_after={y}
+  stmt 4: live_before={y}  live_after={}
+
+--- test_two_blocks: input
+module Test :
+functions:
+public fn test_two_blocks() -> i64:
+  entry: bb20
+
+  bb20:
+    %x:Obj = object_create{size=8:i64 record{fields=1 tag=0 [i64]}}
+    cond_br %cond:i64, bb100, bb101
+
+  bb100:
+    rc_check_release(%x:Obj)
+    return
+
+  bb101:
+
+    return
+end
+
+end
+--- test_two_blocks: live_map
+  stmt 1: live_before={}  live_after={x}
+  stmt 2: live_before={x}  live_after={}
+
+--- test_store_global_and_call: input
+module Test :
+functions:
+public fn test_store_global_and_call() -> i64:
+  entry: bb10
+
+  bb10:
+    %x:Obj = object_create{size=8:i64 record{fields=1 tag=0 [i64]}}
+    store_global g_x = %x:Obj
+    %y:Obj = object_create{size=8:i64 record{fields=1 tag=0 [i64]}}
+    %y:Obj = #call_direct fn (%y:Obj)
+    rc_check_release(%x:Obj)
+    return
+end
+
+end
+--- test_store_global_and_call: live_map
+  stmt 1: live_before={}  live_after={x}
+  stmt 2: live_before={x}  live_after={x}
+  stmt 3: live_before={x}  live_after={x, y}
+  stmt 4: live_before={x, y}  live_after={x}
+  stmt 5: live_before={x}  live_after={}

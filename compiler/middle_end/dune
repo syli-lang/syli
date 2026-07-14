@@ -1,0 +1,10 @@
+(library
+ (name middle_end)
+ (libraries
+  helpers
+  syli_common
+  syli_core
+  syli_parsing
+  syli_typing
+  syli_ir
+  syli_target_llvm))

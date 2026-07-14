@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.5.0
+
+      - name: Install LLVM + Ninja (Ubuntu)
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-18 clang-18 ninja-build
+        env:
+          DEBIAN_FRONTEND: noninteractive
+
+      - name: Install LLVM + Ninja (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          LLVM_FORMULA=$(
+            brew list --formula |
+            grep '^llvm@' |
+            sort -V |
+            tail -n1
+          )
+          echo "Linking $LLVM_FORMULA"
+          brew link "$LLVM_FORMULA"
+          echo "$(brew --prefix "$LLVM_FORMULA")/bin" >> "$GITHUB_PATH"
+
+      - name: Install OCamlforamt
+        run: opam install ocamlformat.0.29.0
+
+      - name: Install menhir
+        run: opam install menhir
+
+      - name: Format
+        run: opam exec -- dune fmt
+  
+      - name: Build compiler
+        run: |
+          opam exec -- dune build
+
+      - name: Build runtime (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          make -C runtime all
+          make -C runtime test
+
+      - name: Build runtime (Ubuntu)
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          make -C runtime all
+          make -C runtime test
+
+      - name: Run all tests on (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          source setup.sh
+          opam exec -- dune test test/exec test/unit test/lexer 
+          opam exec -- dune test test/parsing test/typing test/sir
+
+      - name: Run all tests (Ubuntu)
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          source setup.sh
+          opam exec -- dune test test/exec test/unit test/lexer 
+          opam exec -- dune test test/parsing test/typing test/sir

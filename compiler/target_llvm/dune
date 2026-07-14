@@ -1,0 +1,3 @@
+(library
+ (name syli_target_llvm)
+ (libraries syli_common syli_ir llvm_lir))
