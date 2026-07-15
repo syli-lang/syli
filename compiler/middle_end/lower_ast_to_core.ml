@@ -282,6 +282,11 @@ let rec desugar_expr (env : env) (e : Typed_ast.expr) : expr * env =
           }
         in
         let env' = { body_env with fn_scope = env.fn_scope } in
+        let value_env =
+          match l.rec_flag with
+          | TRecursive -> body_env
+          | TNonRecursive -> { body_env with subst = env.subst }
+        in
         ( CExp_Let
             {
               rec_flag =
@@ -294,7 +299,7 @@ let rec desugar_expr (env : env) (e : Typed_ast.expr) : expr * env =
                   id = l.pattern.id;
                   loc = loc_of_typed l.loc;
                 };
-              value = fst (desugar_expr body_env l.value);
+              value = fst (desugar_expr value_env l.value);
             },
           env' )
     | TExp_Assign { target; value } -> (

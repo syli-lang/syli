@@ -225,7 +225,61 @@ Simple 2 nested functions with the same name:
       }
   
 
+Non-recursive let shadowing a recursive function parameter:
+  $ cat >test_shadow_param.sy <<EOF
+  > signature:
+  >   extern syli_print_i64 : int64 -> unit = "syli_print_i64"
+  > end
+  > let rec countdown n =
+  >   if n == 0 then
+  >     0
+  >   else
+  >     let n = countdown (n - 1)
+  >     n + 1
+  > fn main () = syli_print_i64(countdown 5)
+  > EOF
+  $ dune exec sylic -- core test_shadow_param.sy
+  module Test_shadow_param
+  let rec syliTest_shadow_param.countdown = fun (n) : i64 ->
+      if (n : i64 == 0 : i64) : bool
+        0 : i64
+      else
+        {
+          let syliTest_shadow_param.countdown__n = syliTest_shadow_param.countdown((n : i64 - 1 : i64) : i64) : i64
+          (syliTest_shadow_param.countdown__n : i64 + 1 : i64) : i64
+        }
+  
+  let syliTest_shadow_param.main = fun () : unit ->
+      syliTest_shadow_param.syli_print_i64(syliTest_shadow_param.countdown(5 : i64) : i64) : unit
+  
 
+
+  $ cat >test_param.sy <<EOF
+  > signature:
+  >   extern syli_print_i64 : int64 -> unit = "syli_print_i64"
+  > end
+  > let rec countdown n =
+  >   if n == 0 then
+  >     0
+  >   else
+  >     let n1 = countdown (n - 1)
+  >     n1 + 1
+  > fn main () = syli_print_i64(countdown 5)
+  > EOF
+  $ dune exec sylic -- core test_param.sy
+  module Test_param
+  let rec syliTest_param.countdown = fun (n) : i64 ->
+      if (n : i64 == 0 : i64) : bool
+        0 : i64
+      else
+        {
+          let syliTest_param.countdown__n1 = syliTest_param.countdown((n : i64 - 1 : i64) : i64) : i64
+          (syliTest_param.countdown__n1 : i64 + 1 : i64) : i64
+        }
+  
+  let syliTest_param.main = fun () : unit ->
+      syliTest_param.syli_print_i64(syliTest_param.countdown(5 : i64) : i64) : unit
+  
 Closure as an argument:
   $ cat >test_multi.sy <<EOF
   > let add x y = x + y
