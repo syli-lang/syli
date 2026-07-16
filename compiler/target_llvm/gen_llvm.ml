@@ -66,46 +66,47 @@ let llconst_of_ir_constant (c : Rir.constant) (ty : Rir.ty) : operand =
 type fn_sig = { params : lltype list; ret : lltype }
 
 type lower_ctx = {
-  var_env : (int, operand) Hashtbl.t;
-  runtime_decls : (string, lltype) Hashtbl.t;
-  fn_sigs : (string, fn_sig) Hashtbl.t;
-  ffi_syli_names : (string, string) Hashtbl.t;
+  var_env : operand IntMap.t;
+  runtime_decls : lltype StringMap.t;
+  fn_sigs : fn_sig StringMap.t;
+  ffi_syli_names : string StringMap.t;
   known_globals : StringSet.t;
-  next_reg : int ref;
-  block_label_map : (int, int) Hashtbl.t;
-  str_data : (string, string) Hashtbl.t;
+  next_reg : int;
+  block_label_map : int IntMap.t;
+  str_data : string StringMap.t;
+  allocas : lltype StringMap.t;
 }
 
-let fresh_reg (ctx : lower_ctx) (ty : lltype) : operand =
-  let n = !(ctx.next_reg) in
-  ctx.next_reg := n + 1;
-  LV_Local ("Sy_tmp" ^ string_of_int n, ty)
+let fresh_reg (ctx : lower_ctx) (ty : lltype) : lower_ctx * operand =
+  let n = ctx.next_reg in
+  ({ ctx with next_reg = n + 1 }, LV_Local ("Sy_tmp" ^ string_of_int n, ty))
 
-let add_decl_if_missing (ctx : lower_ctx) (name : string) (ty : lltype) : unit =
-  if not (Hashtbl.mem ctx.runtime_decls name) then
-    Hashtbl.add ctx.runtime_decls name ty
+let add_decl_if_missing (ctx : lower_ctx) (name : string) (ty : lltype) :
+    lower_ctx =
+  if StringMap.mem name ctx.runtime_decls then ctx
+  else { ctx with runtime_decls = StringMap.add name ty ctx.runtime_decls }
 
 let fresh_global_id = Syli_ir.Cir.fresh_id
 let str_ty = LV_Struct [ LV_Ptr; LV_I64 ]
 
-let rec lower_operand (ctx : lower_ctx) (alloca_set : StringSet.t)
-    (op : Rir.operand) : operand * instruction list * StringSet.t =
+let rec lower_operand (ctx : lower_ctx) (op : Rir.operand) :
+    lower_ctx * operand * instruction list =
   match op with
   | RR_OConstant (RR_StringLit s, ty) when ty.ty = RR_Str ->
-      let str_name =
-        match Hashtbl.find_opt ctx.str_data s with
-        | Some name -> name
+      let ctx, str_name =
+        match StringMap.find_opt s ctx.str_data with
+        | Some name -> (ctx, name)
         | None ->
             let name = "__str." ^ string_of_int (fresh_global_id ()) in
-            Hashtbl.replace ctx.str_data s name;
-            name
+            ({ ctx with str_data = StringMap.add s name ctx.str_data }, name)
       in
       let global_op = LV_Global (str_name, LV_Array (String.length s, LV_I8)) in
-      let gep_tmp = fresh_reg ctx LV_Ptr in
-      let s1 = fresh_reg ctx str_ty in
-      let s2 = fresh_reg ctx str_ty in
+      let ctx, gep_tmp = fresh_reg ctx LV_Ptr in
+      let ctx, s1 = fresh_reg ctx str_ty in
+      let ctx, s2 = fresh_reg ctx str_ty in
       let len = Int64.of_int (String.length s) in
-      ( s2,
+      ( ctx,
+        s2,
         [
           LV_Assign
             ( gep_tmp,
@@ -133,21 +134,20 @@ let rec lower_operand (ctx : lower_ctx) (alloca_set : StringSet.t)
                   index = 1;
                   ty = str_ty;
                 } );
-        ],
-        alloca_set )
-  | RR_OConstant (c, ty) -> (llconst_of_ir_constant c ty, [], alloca_set)
+        ] )
+  | RR_OConstant (c, ty) -> (ctx, llconst_of_ir_constant c ty, [])
   | RR_OVar v -> (
       let key = v.id in
-      match Hashtbl.find_opt ctx.var_env key with
+      match IntMap.find_opt key ctx.var_env with
       | Some op' ->
-          if StringSet.mem v.fullname alloca_set then
-            let temp = fresh_reg ctx (lltype_of_ty v.ty) in
-            ( temp,
+          if StringMap.mem v.fullname ctx.allocas then
+            let ctx, temp = fresh_reg ctx (lltype_of_ty v.ty) in
+            ( ctx,
+              temp,
               [
                 LV_Assign (temp, LV_Load { ptr = op'; ty = lltype_of_ty v.ty });
-              ],
-              alloca_set )
-          else (op', [], alloca_set)
+              ] )
+          else (ctx, op', [])
       | None ->
           if not (StringSet.mem v.fullname ctx.known_globals) then
             fail
@@ -155,41 +155,41 @@ let rec lower_operand (ctx : lower_ctx) (alloca_set : StringSet.t)
                  "Unbound RIR variable during RIR->LLVM lowering: id=%d name=%s"
                  v.id v.fullname);
           let load_ty = lltype_of_ty v.ty in
-          let load_tmp = fresh_reg ctx load_ty in
-          ( load_tmp,
+          let ctx, load_tmp = fresh_reg ctx load_ty in
+          ( ctx,
+            load_tmp,
             [
               LV_Assign
                 ( load_tmp,
                   LV_Load { ptr = global v.fullname LV_Ptr; ty = load_ty } );
-            ],
-            alloca_set ))
+            ] ))
 
-let lower_runtime_arg (ctx : lower_ctx) (alloca_set : StringSet.t)
-    (arg : Rir.operand) : operand * instruction list * StringSet.t =
-  lower_operand ctx alloca_set arg
+let lower_runtime_arg (ctx : lower_ctx) (arg : Rir.operand) :
+    lower_ctx * operand * instruction list =
+  lower_operand ctx arg
 
 let call_rhs (ctx : lower_ctx) ~(fn_name : string) ~(ret_ty : lltype)
-    ~(args : operand list) : instr_rhs =
+    ~(args : operand list) : lower_ctx * instr_rhs =
   let param_tys = List.map ty_of_operand args in
   let fn_ty = LV_Func (param_tys, ret_ty) in
-  add_decl_if_missing ctx fn_name fn_ty;
-  LV_Call { fn = global fn_name fn_ty; args; ret_ty }
+  let ctx = add_decl_if_missing ctx fn_name fn_ty in
+  (ctx, LV_Call { fn = global fn_name fn_ty; args; ret_ty })
 
 let assign_rhs_to_var (ctx : lower_ctx) (dst : Rir.var) (rhs : instr_rhs) :
-    instruction list =
+    lower_ctx * instruction list =
   let dst_op = LV_Local (var_name dst, lltype_of_ty dst.ty) in
-  Hashtbl.replace ctx.var_env dst.id dst_op;
-  [ LV_Assign (dst_op, rhs) ]
+  ( { ctx with var_env = IntMap.add dst.id dst_op ctx.var_env },
+    [ LV_Assign (dst_op, rhs) ] )
 
 let ensure_typed_slot_ptr (_ctx : lower_ctx) (ptr : operand)
     (_value_ty : Rir.ty) : instruction list * operand =
   ([], ptr)
 
-let lower_object_slot_ptr (ctx : lower_ctx) (alloca_set : StringSet.t)
-    (obj : Rir.operand) (field_idx : Rir.operand) (value_ty : Rir.ty) :
-    instruction list * operand * StringSet.t =
-  let obj', extra1, alloca_set = lower_operand ctx alloca_set obj in
-  let idx', extra2, alloca_set = lower_operand ctx alloca_set field_idx in
+let lower_object_slot_ptr (ctx : lower_ctx) (obj : Rir.operand)
+    (field_idx : Rir.operand) (value_ty : Rir.ty) :
+    lower_ctx * instruction list * operand =
+  let ctx, obj', extra1 = lower_operand ctx obj in
+  let ctx, idx', extra2 = lower_operand ctx field_idx in
   let values_ptr_rhs =
     LV_GEP
       {
@@ -203,18 +203,18 @@ let lower_object_slot_ptr (ctx : lower_ctx) (alloca_set : StringSet.t)
         result_ty = LV_I64;
       }
   in
-  let values_ptr_reg = fresh_reg ctx LV_Ptr in
+  let ctx, values_ptr_reg = fresh_reg ctx LV_Ptr in
   let slot_ptr_rhs =
     LV_GEP { base = values_ptr_reg; indices = [ idx' ]; result_ty = LV_I64 }
   in
-  let slot_reg = fresh_reg ctx LV_Ptr in
-  ( extra1 @ extra2
+  let ctx, slot_reg = fresh_reg ctx LV_Ptr in
+  ( ctx,
+    extra1 @ extra2
     @ [
         LV_Assign (values_ptr_reg, values_ptr_rhs);
         LV_Assign (slot_reg, slot_ptr_rhs);
       ],
-    slot_reg,
-    alloca_set )
+    slot_reg )
 
 let is_signed = function
   | RR_I32 | RR_I64 | RR_I16 | RR_I8 -> true
@@ -267,28 +267,28 @@ let lower_float_binop (op : Rir.binop) : fbinop =
   | CR_Mod -> LV_FRem
   | _ -> fail "unsupported float binary operator"
 
-let lower_target_operand (ctx : lower_ctx) (alloca_set : StringSet.t)
-    (target : Rir.call_target) (args : operand list) (ret_ty : lltype) :
-    operand * instruction list * StringSet.t =
+let lower_target_operand (ctx : lower_ctx) (target : Rir.call_target)
+    (args : operand list) (ret_ty : lltype) :
+    lower_ctx * operand * instruction list =
   let arg_tys = List.map ty_of_operand args in
   match target with
   | Direct name ->
       let c_name =
-        match Hashtbl.find_opt ctx.ffi_syli_names name with
+        match StringMap.find_opt name ctx.ffi_syli_names with
         | Some c -> c
         | None -> name
       in
       let fn_ty =
-        match Hashtbl.find_opt ctx.fn_sigs c_name with
+        match StringMap.find_opt c_name ctx.fn_sigs with
         | Some s -> LV_Func (s.params, s.ret)
         | None -> LV_Func (arg_tys, ret_ty)
       in
-      (global c_name fn_ty, [], alloca_set)
+      (ctx, global c_name fn_ty, [])
   | Indirect v -> (
-      let op, extra, alloca_set = lower_operand ctx alloca_set (RR_OVar v) in
+      let ctx, op, extra = lower_operand ctx (RR_OVar v) in
       match ty_of_operand op with
-      | LV_Func _ -> (op, extra, alloca_set)
-      | LV_Ptr -> (op, extra, alloca_set)
+      | LV_Func _ -> (ctx, op, extra)
+      | LV_Ptr -> (ctx, op, extra)
       | _ ->
           raise
             (Failure
@@ -298,12 +298,12 @@ let lower_target_operand (ctx : lower_ctx) (alloca_set : StringSet.t)
                   (var_name v)
                   (string_of_lltype (ty_of_operand op)))))
 
-let lower_rvalue_rhs (ctx : lower_ctx) (alloca_set : StringSet.t)
-    (rv : Rir.rvalue) : instr_rhs * instruction list * StringSet.t =
+let lower_rvalue_rhs (ctx : lower_ctx) (rv : Rir.rvalue) :
+    lower_ctx * instr_rhs * instruction list =
   match rv.node with
   | Rir.RR_BinOp { op; lhs; rhs } ->
-      let lhs', extra1, alloca_set = lower_operand ctx alloca_set lhs in
-      let rhs', extra2, alloca_set = lower_operand ctx alloca_set rhs in
+      let ctx, lhs', extra1 = lower_operand ctx lhs in
+      let ctx, rhs', extra2 = lower_operand ctx rhs in
       if
         match op with
         | CR_Eq | CR_Ne | CR_Lt | CR_Le | CR_Gt | CR_Ge -> true
@@ -312,43 +312,41 @@ let lower_rvalue_rhs (ctx : lower_ctx) (alloca_set : StringSet.t)
         let operand_ty =
           match lhs with RR_OConstant (_, ty) -> ty.ty | RR_OVar v -> v.ty.ty
         in
-        ( LV_ICmp (lower_compare_integer op operand_ty, lhs', rhs'),
-          extra1 @ extra2,
-          alloca_set )
+        ( ctx,
+          LV_ICmp (lower_compare_integer op operand_ty, lhs', rhs'),
+          extra1 @ extra2 )
       else if is_float_ir_type rv.ty.ty then
-        ( LV_FBinOp (lower_float_binop op, lhs', rhs'),
-          extra1 @ extra2,
-          alloca_set )
+        (ctx, LV_FBinOp (lower_float_binop op, lhs', rhs'), extra1 @ extra2)
       else
-        ( LV_IBinOp (lower_integer_binop op rv.ty.ty, lhs', rhs'),
-          extra1 @ extra2,
-          alloca_set )
+        ( ctx,
+          LV_IBinOp (lower_integer_binop op rv.ty.ty, lhs', rhs'),
+          extra1 @ extra2 )
   | Rir.RR_UnOp { op; operand } -> (
-      let value, extra, alloca_set = lower_operand ctx alloca_set operand in
+      let ctx, value, extra = lower_operand ctx operand in
       let value_ty = ty_of_operand value in
       match op with
       | CR_Neg ->
           if is_float_ir_type rv.ty.ty then
-            ( LV_FBinOp (LV_FSub, LV_Constant (LV_Float 0.0, value_ty), value),
-              extra,
-              alloca_set )
+            ( ctx,
+              LV_FBinOp (LV_FSub, LV_Constant (LV_Float 0.0, value_ty), value),
+              extra )
           else
-            ( LV_IBinOp (LV_ISub, LV_Constant (LV_Integer 0L, value_ty), value),
-              extra,
-              alloca_set )
-      | CR_Not -> (LV_IBinOp (LV_IBitXor, value, i1 true), extra, alloca_set)
+            ( ctx,
+              LV_IBinOp (LV_ISub, LV_Constant (LV_Integer 0L, value_ty), value),
+              extra )
+      | CR_Not -> (ctx, LV_IBinOp (LV_IBitXor, value, i1 true), extra)
       | CR_BitNot ->
-          ( LV_IBinOp
+          ( ctx,
+            LV_IBinOp
               (LV_IBitXor, value, LV_Constant (LV_Integer (-1L), value_ty)),
-            extra,
-            alloca_set ))
+            extra ))
   | Rir.RR_Runtime_call { fn_name; args; ret_ty } ->
-      let alloca_set, args_results =
+      let ctx, args_results =
         List.fold_left_map
-          (fun s a ->
-            let o, e, s = lower_runtime_arg ctx s a in
-            (s, (o, e)))
-          alloca_set args
+          (fun ctx a ->
+            let ctx, o, e = lower_runtime_arg ctx a in
+            (ctx, (o, e)))
+          ctx args
       in
       let args_ops, extra_list = List.split args_results in
       let extra = List.concat extra_list in
@@ -356,137 +354,143 @@ let lower_rvalue_rhs (ctx : lower_ctx) (alloca_set : StringSet.t)
         match ret_ty with Some ty -> lltype_of_ty ty | None -> LV_Void
       in
       let fn_name = Rir.runtime_op_name_to_string fn_name in
-      (call_rhs ctx ~fn_name ~ret_ty ~args:args_ops, extra, alloca_set)
+      let ctx, rhs = call_rhs ctx ~fn_name ~ret_ty ~args:args_ops in
+      (ctx, rhs, extra)
   | Rir.RR_Object_load _ ->
       fail "RR_Object_load must be lowered through lower_statement"
   | Rir.RR_Cast { src; to_ty } ->
-      let src', extra, alloca_set = lower_operand ctx alloca_set src in
-      (LV_Cast (LV_BitCast, src', lltype_of_ty to_ty), extra, alloca_set)
+      let ctx, src', extra = lower_operand ctx src in
+      (ctx, LV_Cast (LV_BitCast, src', lltype_of_ty to_ty), extra)
   | Rir.RR_Addr_fn { fn } ->
       let fn_ptr = global fn LV_Ptr in
       let ptr_ty = lltype_of_ty rv.ty in
-      (LV_Cast (LV_BitCast, fn_ptr, ptr_ty), [], alloca_set)
+      (ctx, LV_Cast (LV_BitCast, fn_ptr, ptr_ty), [])
 
-let lower_statement (ctx : lower_ctx) (alloca_set : StringSet.t)
-    (stmt : Rir.statement) : StringSet.t * instruction list =
+let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
+    lower_ctx * instruction list =
   match stmt.node with
   | Rir.RR_Assign { dst; rvalue = { node = Rir.RR_Cast { src; to_ty }; _ } } ->
-      let src', extra, alloca_set = lower_operand ctx alloca_set src in
-      if ty_of_operand src' = lltype_of_ty to_ty then (
-        Hashtbl.replace ctx.var_env dst.id src';
-        (alloca_set, extra))
+      let ctx, src', extra = lower_operand ctx src in
+      if ty_of_operand src' = lltype_of_ty to_ty then
+        ({ ctx with var_env = IntMap.add dst.id src' ctx.var_env }, extra)
       else
-        ( alloca_set,
-          extra
-          @ assign_rhs_to_var ctx dst
-              (LV_Cast (LV_BitCast, src', lltype_of_ty to_ty)) )
+        let ctx, instrs =
+          assign_rhs_to_var ctx dst
+            (LV_Cast (LV_BitCast, src', lltype_of_ty to_ty))
+        in
+        (ctx, extra @ instrs)
   | Rir.RR_Assign
       {
         dst;
         rvalue = { node = Rir.RR_Object_load { obj; field_idx; value_ty }; _ };
       } ->
-      let ptr_instrs, typed_ptr, alloca_set =
-        lower_object_slot_ptr ctx alloca_set obj field_idx value_ty
+      let ctx, ptr_instrs, typed_ptr =
+        lower_object_slot_ptr ctx obj field_idx value_ty
       in
-      ( alloca_set,
-        ptr_instrs
-        @ assign_rhs_to_var ctx dst
-            (LV_Load { ptr = typed_ptr; ty = lltype_of_ty value_ty }) )
+      let ctx, instrs =
+        assign_rhs_to_var ctx dst
+          (LV_Load { ptr = typed_ptr; ty = lltype_of_ty value_ty })
+      in
+      (ctx, ptr_instrs @ instrs)
   | Rir.RR_Assign { dst; rvalue } ->
-      let rhs, extra, alloca_set = lower_rvalue_rhs ctx alloca_set rvalue in
-      (alloca_set, extra @ assign_rhs_to_var ctx dst rhs)
+      let ctx, rhs, extra = lower_rvalue_rhs ctx rvalue in
+      let ctx, instrs = assign_rhs_to_var ctx dst rhs in
+      (ctx, extra @ instrs)
   | Rir.RR_Call { dst; target; args } ->
-      let alloca_set, args_results =
+      let ctx, args_results =
         List.fold_left_map
-          (fun s a ->
-            let o, e, s = lower_operand ctx s a in
-            (s, (o, e)))
-          alloca_set args
+          (fun ctx a ->
+            let ctx, o, e = lower_operand ctx a in
+            (ctx, (o, e)))
+          ctx args
       in
       let args_ops, extra_list = List.split args_results in
       let extra = List.concat extra_list in
       let ret_ty = lltype_of_ty dst.ty in
-      let fn_op, extra2, alloca_set =
-        lower_target_operand ctx alloca_set target args_ops ret_ty
+      let ctx, fn_op, extra2 =
+        lower_target_operand ctx target args_ops ret_ty
       in
       let rhs = LV_Call { fn = fn_op; args = args_ops; ret_ty } in
-      (alloca_set, extra @ extra2 @ assign_rhs_to_var ctx dst rhs)
+      let ctx, instrs = assign_rhs_to_var ctx dst rhs in
+      (ctx, extra @ extra2 @ instrs)
   | Rir.RR_Runtime_call { dst; call = { fn_name; args; ret_ty = _ } } ->
-      let alloca_set, args_results =
+      let ctx, args_results =
         List.fold_left_map
-          (fun s a ->
-            let o, e, s = lower_runtime_arg ctx s a in
-            (s, (o, e)))
-          alloca_set args
+          (fun ctx a ->
+            let ctx, o, e = lower_runtime_arg ctx a in
+            (ctx, (o, e)))
+          ctx args
       in
       let args_ops, extra_list = List.split args_results in
       let extra = List.concat extra_list in
       let ret_ty = lltype_of_ty dst.ty in
       let fn_name = Rir.runtime_op_name_to_string fn_name in
-      let rhs = call_rhs ctx ~fn_name ~ret_ty ~args:args_ops in
-      (alloca_set, extra @ assign_rhs_to_var ctx dst rhs)
+      let ctx, rhs = call_rhs ctx ~fn_name ~ret_ty ~args:args_ops in
+      let ctx, instrs = assign_rhs_to_var ctx dst rhs in
+      (ctx, extra @ instrs)
   | Rir.RR_Object_store { obj; field_idx; value; value_ty } ->
-      let ptr_instrs, typed_ptr, alloca_set =
-        lower_object_slot_ptr ctx alloca_set obj field_idx value_ty
+      let ctx, ptr_instrs, typed_ptr =
+        lower_object_slot_ptr ctx obj field_idx value_ty
       in
-      let value_ops, extra, alloca_set = lower_operand ctx alloca_set value in
-      (alloca_set, ptr_instrs @ extra @ [ LV_Store (value_ops, typed_ptr) ])
+      let ctx, value_ops, extra = lower_operand ctx value in
+      (ctx, ptr_instrs @ extra @ [ LV_Store (value_ops, typed_ptr) ])
   | Rir.RR_Move { dst; src } ->
       let val_ty = lltype_of_ty dst.ty in
       let ptr_op = LV_Local (var_name dst, LV_Ptr) in
-      Hashtbl.replace ctx.var_env dst.id ptr_op;
-      let src_ops, extra, alloca_set = lower_operand ctx alloca_set src in
-      ( StringSet.add (var_name dst) alloca_set,
-        extra
-        @ [ LV_Assign (ptr_op, LV_Alloca val_ty); LV_Store (src_ops, ptr_op) ]
-      )
+      let ctx =
+        {
+          ctx with
+          var_env = IntMap.add dst.id ptr_op ctx.var_env;
+          allocas =
+            (if StringMap.mem (var_name dst) ctx.allocas then ctx.allocas
+             else StringMap.add (var_name dst) val_ty ctx.allocas);
+        }
+      in
+      let ctx, src_ops, extra = lower_operand ctx src in
+      (ctx, extra @ [ LV_Store (src_ops, ptr_op) ])
   | Rir.RR_Store_global { global = global_name; value } ->
-      let gv, extra, alloca_set = lower_operand ctx alloca_set value in
-      (alloca_set, extra @ [ LV_Store (gv, global global_name LV_Ptr) ])
-  | Rir.RR_Nop -> (alloca_set, [ LV_Comment "nop" ])
+      let ctx, gv, extra = lower_operand ctx value in
+      (ctx, extra @ [ LV_Store (gv, global global_name LV_Ptr) ])
+  | Rir.RR_Nop -> (ctx, [ LV_Comment "nop" ])
 
-let lower_terminator (ctx : lower_ctx) (alloca_set : StringSet.t)
-    (term : Rir.terminator) : terminator * instruction list * StringSet.t =
+let lower_terminator (ctx : lower_ctx) (term : Rir.terminator) :
+    lower_ctx * terminator * instruction list =
   match term.node with
   | RR_Goto id ->
-      let label_id = Hashtbl.find ctx.block_label_map id in
-      (LV_Br (label_of_block_id label_id), [], alloca_set)
+      let label_id = IntMap.find id ctx.block_label_map in
+      (ctx, LV_Br (label_of_block_id label_id), [])
   | RR_CondBr { cond; then_block; else_block } ->
-      let then_label_id = Hashtbl.find ctx.block_label_map then_block in
-      let else_label_id = Hashtbl.find ctx.block_label_map else_block in
-      let cond_op, extra, alloca_set =
-        lower_operand ctx alloca_set (RR_OVar cond)
-      in
-      ( LV_CondBr
+      let then_label_id = IntMap.find then_block ctx.block_label_map in
+      let else_label_id = IntMap.find else_block ctx.block_label_map in
+      let ctx, cond_op, extra = lower_operand ctx (RR_OVar cond) in
+      ( ctx,
+        LV_CondBr
           ( cond_op,
             label_of_block_id then_label_id,
             label_of_block_id else_label_id ),
-        extra,
-        alloca_set )
+        extra )
   | RR_Switch { scrutinee; cases; default_block } ->
-      let scrutinee_op, extra, alloca_set =
-        lower_operand ctx alloca_set (RR_OVar scrutinee)
-      in
+      let ctx, scrutinee_op, extra = lower_operand ctx (RR_OVar scrutinee) in
       let default_label =
         match default_block with
-        | Some id -> label_of_block_id (Hashtbl.find ctx.block_label_map id)
+        | Some id -> label_of_block_id (IntMap.find id ctx.block_label_map)
         | None -> "switch_default_unreachable"
       in
       let cases' =
         List.map
           (fun (c : switch_case_node) ->
             ( LV_Constant (LV_Integer (Int64.of_int c.value), LV_I64),
-              label_of_block_id
-                (Hashtbl.find ctx.block_label_map c.target_block) ))
+              label_of_block_id (IntMap.find c.target_block ctx.block_label_map)
+            ))
           cases
       in
-      (LV_Switch (scrutinee_op, default_label, cases'), extra, alloca_set)
+      (ctx, LV_Switch (scrutinee_op, default_label, cases'), extra)
   | RR_Return value_opt -> (
       match value_opt with
-      | None -> (LV_Ret None, [], alloca_set)
+      | None -> (ctx, LV_Ret None, [])
       | Some op ->
-          let op', extra, alloca_set = lower_operand ctx alloca_set op in
-          (LV_Ret (Some op'), extra, alloca_set))
+          let ctx, op', extra = lower_operand ctx op in
+          (ctx, LV_Ret (Some op'), extra))
 
 let unique_blocks (fn : Rir.function_rir) : Rir.block list =
   let seen = Hashtbl.create 16 in
@@ -499,147 +503,113 @@ let unique_blocks (fn : Rir.function_rir) : Rir.block list =
         true))
     all
 
-let var_name_of_instr (instr : instruction) : string option =
-  match instr with
-  | LV_Assign (LV_Local (name, _), LV_Alloca _) -> Some name
-  | _ -> None
-
-let hoist_allocas (blocks : block list) : block list =
-  let is_static_alloca instr =
-    match instr with LV_Assign (_, LV_Alloca _) -> true | _ -> false
-  in
-  let is_not_static_alloca instr = not (is_static_alloca instr) in
-  let all_static_alloca =
-    List.map
-      (fun block -> List.filter is_static_alloca block.instructions)
-      blocks
-    |> List.flatten
-  in
-  let rest_blocks =
-    List.map
-      (fun block ->
-        {
-          block with
-          instructions = List.filter is_not_static_alloca block.instructions;
-        })
-      blocks
-  in
-  let deduped =
-    let seen = Hashtbl.create 16 in
-    List.filter
-      (fun instr ->
-        match var_name_of_instr instr with
-        | Some name when Hashtbl.mem seen name -> false
-        | Some name ->
-            Hashtbl.add seen name true;
-            true
-        | None -> true)
-      all_static_alloca
-  in
-  match rest_blocks with
-  | entry :: rest ->
-      { entry with instructions = deduped @ entry.instructions } :: rest
-  | [] -> []
-
-let lower_function (runtime_decls : (string, lltype) Hashtbl.t)
-    (fn_sigs : (string, fn_sig) Hashtbl.t)
-    (ffi_syli_names : (string, string) Hashtbl.t) (known_globals : StringSet.t)
-    (str_data : (string, string) Hashtbl.t) (fn : Rir.function_rir) : func =
-  let block_label_map = Hashtbl.create 16 in
-  List.iter
-    (fun (b : Rir.block) -> Hashtbl.add block_label_map b.id b.label_id)
-    (fn.entry_block :: fn.blocks);
+let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
+    =
   let ctx =
-    {
-      var_env = Hashtbl.create 64;
-      runtime_decls;
-      fn_sigs;
-      ffi_syli_names;
-      known_globals;
-      next_reg = ref 0;
-      block_label_map;
-      str_data;
-    }
+    { ctx with var_env = IntMap.empty; next_reg = 0; allocas = StringMap.empty }
   in
-  let params =
-    List.map
-      (fun (v : Rir.var) ->
+  let ctx =
+    List.fold_left
+      (fun ctx (v : Rir.var) ->
         let name = var_name v in
         let llty = lltype_of_ty v.ty in
-        Hashtbl.replace ctx.var_env v.id (local name llty);
-        (llty, name))
-      fn.params
+        { ctx with var_env = IntMap.add v.id (local name llty) ctx.var_env })
+      ctx fn.params
   in
-  List.iter
-    (fun (v : Rir.var) ->
-      if not (Hashtbl.mem ctx.var_env v.id) then
-        Hashtbl.replace ctx.var_env v.id
-          (local (var_name v) (lltype_of_ty v.ty)))
-    fn.locals;
-  let blocks =
+  let ctx =
+    List.fold_left
+      (fun ctx (v : Rir.var) ->
+        if IntMap.mem v.id ctx.var_env then ctx
+        else
+          {
+            ctx with
+            var_env =
+              IntMap.add v.id
+                (local (var_name v) (lltype_of_ty v.ty))
+                ctx.var_env;
+          })
+      ctx fn.locals
+  in
+  let final_ctx, blocks =
     unique_blocks fn
     |> List.fold_left_map
-         (fun alloca_set (b : Rir.block) ->
-           let alloca_set, stmt_instrs =
-             List.fold_left_map
-               (fun s stmt ->
-                 let s', instrs = lower_statement ctx s stmt in
-                 (s', instrs))
-               alloca_set b.statements
-             |> fun (s, instrs) -> (s, List.concat instrs)
+         (fun ctx (b : Rir.block) ->
+           let ctx, stmt_instrs =
+             List.fold_left
+               (fun (ctx, acc) stmt ->
+                 let ctx, instrs = lower_statement ctx stmt in
+                 (ctx, acc @ instrs))
+               (ctx, []) b.statements
            in
-           let term, extra, alloca_set =
-             lower_terminator ctx alloca_set b.terminator
-           in
-           ( alloca_set,
+           let ctx, term, extra = lower_terminator ctx b.terminator in
+           ( ctx,
              {
                label = label_of_block_id b.label_id;
                instructions = stmt_instrs @ extra;
                terminator = term;
              } ))
-         StringSet.empty
-    |> snd |> hoist_allocas
-    |> fun bs ->
-    let need_unreachable =
-      let has_no_default_switch (b : Rir.block) =
-        match b.terminator.node with
-        | RR_Switch { default_block = None; _ } -> true
-        | _ -> false
+         ctx
+    |> fun (final_ctx, blocks) ->
+    let blocks =
+      let alloca_instrs =
+        StringMap.fold
+          (fun name ty acc ->
+            LV_Assign (LV_Local (name, LV_Ptr), LV_Alloca ty) :: acc)
+          final_ctx.allocas []
       in
-      has_no_default_switch fn.entry_block
-      || List.exists has_no_default_switch fn.blocks
+      let need_unreachable =
+        let has_no_default_switch (b : Rir.block) =
+          match b.terminator.node with
+          | RR_Switch { default_block = None; _ } -> true
+          | _ -> false
+        in
+        has_no_default_switch fn.entry_block
+        || List.exists has_no_default_switch fn.blocks
+      in
+      let blocks =
+        if need_unreachable then
+          blocks
+          @ [
+              {
+                label = "switch_default_unreachable";
+                instructions = [];
+                terminator = LV_Unreachable;
+              };
+            ]
+        else blocks
+      in
+      match blocks with
+      | entry :: rest ->
+          { entry with instructions = alloca_instrs @ entry.instructions }
+          :: rest
+      | [] -> []
     in
-    if need_unreachable then
-      bs
-      @ [
-          {
-            label = "switch_default_unreachable";
-            instructions = [];
-            terminator = LV_Unreachable;
-          };
-        ]
-    else bs
+    (final_ctx, blocks)
   in
-  {
-    name = fn.name;
-    ret_type = lltype_of_ty fn.return_ty;
-    params;
-    blocks;
-    linkage =
-      (match fn.visibility with CR_Public -> External | CR_Private -> Private);
-  }
+  let params =
+    List.map (fun (v : Rir.var) -> (lltype_of_ty v.ty, var_name v)) fn.params
+  in
+  ( final_ctx,
+    {
+      name = fn.name;
+      ret_type = lltype_of_ty fn.return_ty;
+      params;
+      blocks;
+      linkage =
+        (match fn.visibility with
+        | CR_Public -> External
+        | CR_Private -> Private);
+    } )
 
-let build_fn_sig_table (prog : Rir.program_rir) : (string, fn_sig) Hashtbl.t =
-  let tbl = Hashtbl.create 64 in
-  List.iter
-    (fun (fn : Rir.function_rir) ->
+let build_fn_sig_table (prog : Rir.program_rir) : fn_sig StringMap.t =
+  List.fold_left
+    (fun map (fn : Rir.function_rir) ->
       let params =
         List.map (fun (v : Rir.var) -> lltype_of_ty v.ty) fn.params
       in
       let ret = lltype_of_ty fn.return_ty in
-      Hashtbl.replace tbl fn.name { params; ret })
-    prog.functions;
-  tbl
+      StringMap.add fn.name { params; ret } map)
+    StringMap.empty prog.functions
 
 let lower_ffi_decl (ffi : Rir.ffi_external_function) : string * lltype =
   let lower = fun ty -> lltype_of_ty ty in
@@ -676,31 +646,68 @@ let lower_global (g : Rir.global_value) : global_var =
   }
 
 let lower_program (prog : Rir.program_rir) : module_ =
-  let ffi_syli_names = Hashtbl.create 16 in
-  List.iter
-    (fun (ffi : Rir.ffi_external_function) ->
-      Hashtbl.replace ffi_syli_names ffi.syli_name ffi.name)
-    prog.ffi_external_functions;
-  let runtime_decls = Hashtbl.create 32 in
-  let fn_sigs = build_fn_sig_table prog in
-  let str_data = Hashtbl.create 16 in
+  let ffi_syli_names =
+    List.fold_left
+      (fun map (ffi : Rir.ffi_external_function) ->
+        StringMap.add ffi.syli_name ffi.name map)
+      StringMap.empty prog.ffi_external_functions
+  in
   let known_globals =
     List.fold_left
       (fun set (gv : Rir.global_value) -> StringSet.add gv.name set)
       StringSet.empty prog.global_values
   in
-  let lower_fn =
-    lower_function runtime_decls fn_sigs ffi_syli_names known_globals str_data
+  let ctx0 : lower_ctx =
+    {
+      var_env = IntMap.empty;
+      runtime_decls = StringMap.empty;
+      fn_sigs = build_fn_sig_table prog;
+      ffi_syli_names;
+      known_globals;
+      next_reg = 0;
+      block_label_map = IntMap.empty;
+      str_data = StringMap.empty;
+      allocas = StringMap.empty;
+    }
   in
-  let functions = List.map lower_fn prog.functions in
+  let final_ctx, functions =
+    List.fold_left_map
+      (fun ctx (fn : Rir.function_rir) ->
+        let block_label_map =
+          List.fold_left
+            (fun map (b : Rir.block) -> IntMap.add b.id b.label_id map)
+            IntMap.empty
+            (fn.entry_block :: fn.blocks)
+        in
+        let fn_ctx =
+          {
+            ctx with
+            var_env = IntMap.empty;
+            next_reg = 0;
+            block_label_map;
+            allocas = StringMap.empty;
+          }
+        in
+        let fn_ctx_after, fn_result = lower_function fn_ctx fn in
+        ( {
+            ctx with
+            runtime_decls = fn_ctx_after.runtime_decls;
+            str_data = fn_ctx_after.str_data;
+          },
+          fn_result ))
+      ctx0 prog.functions
+  in
   let runtime_declarations =
-    Hashtbl.to_seq runtime_decls |> List.of_seq |> List.sort compare
+    StringMap.fold
+      (fun name ty acc -> (name, ty) :: acc)
+      final_ctx.runtime_decls []
+    |> List.sort compare
   in
   let ffi_declarations = List.map lower_ffi_decl prog.ffi_external_functions in
   let declarations = runtime_declarations @ ffi_declarations in
   let globals =
     let str_globals =
-      Hashtbl.fold
+      StringMap.fold
         (fun s name acc ->
           {
             g_name = name;
@@ -709,7 +716,7 @@ let lower_program (prog : Rir.program_rir) : module_ =
             g_linkage = Private;
           }
           :: acc)
-        str_data []
+        final_ctx.str_data []
     in
     List.map lower_global prog.global_values @ str_globals
   in
@@ -724,9 +731,6 @@ let lower_program (prog : Rir.program_rir) : module_ =
     functions;
     source_filename = prog.name;
   }
-
-let lower = lower_program
-let convert_program = lower_program
 
 let to_string (prog : Rir.program_rir) : string =
   module_to_string (lower_program prog)

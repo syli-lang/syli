@@ -6,5 +6,3 @@
 module Rir = Syli_ir.Rir
 
 val lower_program : Rir.program_rir -> Llvm_lir.module_
-val lower : Rir.program_rir -> Llvm_lir.module_
-val to_string : Rir.program_rir -> string

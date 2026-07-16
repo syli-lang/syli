@@ -30,7 +30,8 @@ let run (fmt : t) (filename : string) : string =
   in
   let rir_and_llvm (ctx : Pipeline_types.rir_ctx) =
     ctx.module_rir.functions @ ctx.apply_gen_functions |> fun functions ->
-    { ctx.module_rir with functions } |> Syli_target_llvm.Gen_llvm.to_string
+    { ctx.module_rir with functions }
+    |> Syli_target_llvm.Gen_llvm.lower_program |> Llvm_lir.module_to_string
   in
   match fmt with
   | Core -> normalized () |> Syli_core__Pp.string_of_program
