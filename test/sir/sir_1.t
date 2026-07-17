@@ -308,6 +308,7 @@ Closures as an argument:
   > let double_x x = x + x
   > let result = apply_twice double_x 10
   > EOF
+
   $ dune exec sylic -- cir test_closure.src
   module Test_closure :
   globals:
@@ -348,6 +349,37 @@ Closures as an argument:
     bb0:
       %Sy_var0:i64 = %x:i64 + %x:i64
       return %Sy_var0:i64
+  end
+  
+  end
+
+
+Char literal:
+  $ cat >test_char.sy <<EOF
+  > let c = 'A'
+  > EOF
+  $ dune exec sylic -- cir test_char.sy
+  module Test_char :
+  globals:
+  global public syliTest_char.c : char = 'A' init=__init_global.syliTest_char.c
+  
+  
+  functions:
+  public fn __init.Test_char() -> void:
+    entry: bb0
+  
+    bb0:
+      %__init_tmp_0:char = #call_direct __init_global.syliTest_char.c ()
+      store_global syliTest_char.c = %__init_tmp_0:char
+      return
+  end
+  
+  private fn __init_global.syliTest_char.c() -> char:
+    entry: bb0
+  
+    bb0:
+  
+      return 'A':char
   end
   
   end

@@ -46,6 +46,7 @@ let is_reference_ty = function
       false
   | RR_Obj_Ptr _ -> true
   | RR_FnPtr -> false
+  | RR_Char -> false
   | RR_Str -> false
 
 (* ------------------------------------------------------------- *)
@@ -213,6 +214,7 @@ let rec lower_ir_type (t : Oir.ir_type) : Rir.ir_type =
   | OR_FnPtr -> RR_FnPtr
   | OR_Obj _ -> object_ptr_ty
   | OR_Obj_Ptr inner -> RR_Obj_Ptr (lower_ir_type inner.ir_type)
+  | OR_Char -> RR_Char
   | OR_Str -> RR_Str
   | OR_Void -> RR_Void
 

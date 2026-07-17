@@ -36,6 +36,7 @@ let rec type_key_of_ty (t : ty) : string =
   | OR_Float -> "f32"
   | OR_Double -> "f64"
   | OR_FnPtr -> "fn_ptr"
+  | OR_Char -> "char"
   | OR_Str -> "str"
   | OR_Void -> "void"
   | OR_Obj_Ptr inner -> "obj_" ^ type_key_of_ty inner

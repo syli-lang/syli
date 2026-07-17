@@ -14,3 +14,7 @@ void syli_print_f64(double value) {
 void syli_print_str(SyliStr s) {
     fwrite(s.ptr, 1, s.len, stdout);
 }
+
+void syli_print_char(char value) {
+    fputc(value, stdout);
+}

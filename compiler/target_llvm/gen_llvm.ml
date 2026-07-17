@@ -22,6 +22,7 @@ let rec lltype_of_ir_type (ty : Rir.ir_type) : lltype =
   | RR_Void -> LV_Void
   | RR_Obj_Ptr _ -> LV_Ptr
   | RR_FnPtr -> LV_Ptr
+  | RR_Char -> LV_I8
   | RR_Str -> LV_Struct [ LV_Ptr; LV_I64 ]
   | RR_Arrow (args, ret) ->
       LV_Func (List.map lltype_of_ir_type args, lltype_of_ir_type ret)

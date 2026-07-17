@@ -223,23 +223,9 @@ ty:
   | TY_DOUBLE { mk_ty $startpos $endpos (Ty_Constant Ty_Double) }
 
   | TY_CHAR
-      {
-        mk_ty $startpos $endpos
-          (Ty_Defined
-             {
-               name = mk_ident $startpos $endpos "char";
-               args = [];
-             })
-      }
+      { mk_ty $startpos $endpos (Ty_Constant Ty_CharLit) }
   | TY_BOOL
-      {
-        mk_ty $startpos $endpos
-          (Ty_Defined
-             {
-               name = mk_ident $startpos $endpos "bool";
-               args = [];
-             })
-      }
+      { mk_ty $startpos $endpos (Ty_Constant Ty_Bool) }
   | TY_UNIT
       { mk_ty $startpos $endpos (Ty_Constant Ty_Unit) }
   | TY_STR

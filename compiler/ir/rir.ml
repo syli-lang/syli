@@ -82,6 +82,7 @@ type ir_type =
   | RR_Double
   | RR_Obj_Ptr of ir_type
   | RR_FnPtr
+  | RR_Char
   | RR_Str
   | RR_Void
   | RR_Arrow of ir_type list * ir_type

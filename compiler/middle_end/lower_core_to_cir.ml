@@ -139,7 +139,7 @@ let mk_ir_ty (cty : C.ty) : I.ty =
         | CTy_Float -> I.CR_Float
         | CTy_Double -> I.CR_Double
         | CTy_StringLit -> I.CR_Str
-        | CTy_CharLit -> I.CR_I8)
+        | CTy_CharLit -> I.CR_Char)
     | CTy_Var v -> I.CR_GenericTyp { type_var = v }
     | CTy_Arrow (args, ret) ->
         I.CR_Arrow

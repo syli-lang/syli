@@ -96,6 +96,7 @@ let rec lower_ir_type (t : Cir.ir_type) : Oir.ir_type =
   | Cir.CR_Obj { named; args } ->
       Oir.OR_Obj { named; args = List.map lower_ty args }
   | Cir.CR_Obj_Ptr inner -> Oir.OR_Obj_Ptr (lower_ty inner)
+  | Cir.CR_Char -> Oir.OR_Char
   | Cir.CR_Str -> Oir.OR_Str
   | Cir.CR_Void -> Oir.OR_Void
   | Cir.CR_GenericTyp _ ->

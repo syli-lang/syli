@@ -137,3 +137,14 @@ String escape sequences:
   $ ./test_esc_str.exe
   hello
   worldABCquot"hereback\slash
+
+Char literal printed via syli_print_char:
+  $ cat >test_char.sy <<EOF
+  > signature:
+  >   extern syli_print_char : char -> unit = "syli_print_char"
+  > end
+  > fn main () = syli_print_char 'A'
+  > EOF
+  $ dune exec sylic -- build test_char.sy
+  $ ./test_char.exe
+  A

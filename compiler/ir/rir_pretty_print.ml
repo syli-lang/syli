@@ -14,6 +14,7 @@ let rec string_of_ir_type = function
   | RR_Double -> "f64"
   | RR_Obj_Ptr inner -> Printf.sprintf "*%s" (string_of_ir_type inner)
   | RR_FnPtr -> "fn_ptr"
+  | RR_Char -> "char"
   | RR_Str -> "str"
   | RR_Void -> "void"
   | RR_Arrow (param_tys, ret_ty) ->
