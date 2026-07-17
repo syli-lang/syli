@@ -152,4 +152,3 @@ Closure with multiple captured variables:
   
 
 
-

@@ -71,12 +71,10 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           source setup.sh
-          opam exec -- dune test test/exec test/unit test/lexer 
-          opam exec -- dune test test/parsing test/typing test/sir
+          opam exec -- dune test
 
       - name: Run all tests (Ubuntu)
         if: matrix.os == 'ubuntu-24.04'
         run: |
           source setup.sh
-          opam exec -- dune test test/exec test/unit test/lexer 
-          opam exec -- dune test test/parsing test/typing test/sir
+          opam exec -- dune test

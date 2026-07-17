@@ -1,4 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
+
+find_program(CLANG clang)
+if(CLANG AND NOT CMAKE_C_COMPILER)
+    set(CMAKE_C_COMPILER "${CLANG}" CACHE FILEPATH "C compiler")
+endif()
+
 project(runtime VERSION 1.0.0 LANGUAGES C)
 
 # Set C standard
