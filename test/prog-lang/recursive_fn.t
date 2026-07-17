@@ -122,7 +122,9 @@
   }
   
 
-  $ llc test_file.ll
+  $ clang -O3 -S --target=x86_64-pc-linux-gnu test_file.ll
+  warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]
+  1 warning generated.
   $ cat test_file.s
   	.text
   	.file	"test_file.ll"
@@ -134,8 +136,8 @@
   # %bb.0:                                # %bb0
   	pushq	%rax
   	.cfi_def_cfa_offset 16
-  	callq	syli_modules_init@PLT
-  	callq	syliTest_file.main@PLT
+  	movl	$120, %edi
+  	callq	syli_print_i64@PLT
   	xorl	%eax, %eax
   	popq	%rcx
   	.cfi_def_cfa_offset 8
@@ -148,28 +150,19 @@
   	.p2align	4, 0x90
   	.type	syli_modules_init,@function
   syli_modules_init:                      # @syli_modules_init
-  	.cfi_startproc
   # %bb.0:                                # %bb0
-  	pushq	%rax
-  	.cfi_def_cfa_offset 16
-  	callq	__init.Test_file@PLT
-  	popq	%rax
-  	.cfi_def_cfa_offset 8
   	retq
   .Lfunc_end1:
   	.size	syli_modules_init, .Lfunc_end1-syli_modules_init
-  	.cfi_endproc
                                           # -- End function
   	.globl	__init.Test_file                # -- Begin function __init.Test_file
   	.p2align	4, 0x90
   	.type	__init.Test_file,@function
   __init.Test_file:                       # @__init.Test_file
-  	.cfi_startproc
   # %bb.0:                                # %bb0
   	retq
   .Lfunc_end2:
   	.size	__init.Test_file, .Lfunc_end2-__init.Test_file
-  	.cfi_endproc
                                           # -- End function
   	.globl	syliTest_file.main              # -- Begin function syliTest_file.main
   	.p2align	4, 0x90
@@ -177,15 +170,8 @@
   syliTest_file.main:                     # @syliTest_file.main
   	.cfi_startproc
   # %bb.0:                                # %bb0
-  	pushq	%rax
-  	.cfi_def_cfa_offset 16
-  	movl	$5, %edi
-  	callq	syliTest_file.factorial@PLT
-  	movq	%rax, %rdi
-  	callq	syli_print_i64@PLT
-  	popq	%rax
-  	.cfi_def_cfa_offset 8
-  	retq
+  	movl	$120, %edi
+  	jmp	syli_print_i64@PLT              # TAILCALL
   .Lfunc_end3:
   	.size	syliTest_file.main, .Lfunc_end3-syliTest_file.main
   	.cfi_endproc
@@ -194,34 +180,72 @@
   	.p2align	4, 0x90
   	.type	syliTest_file.factorial,@function
   syliTest_file.factorial:                # @syliTest_file.factorial
-  	.cfi_startproc
   # %bb.0:                                # %bb0
-  	pushq	%rbx
-  	.cfi_def_cfa_offset 16
-  	subq	$16, %rsp
-  	.cfi_def_cfa_offset 32
-  	.cfi_offset %rbx, -16
   	testq	%rdi, %rdi
-  	je	.LBB4_2
-  # %bb.1:                                # %bb2
-  	leaq	-1(%rdi), %rax
-  	movq	%rdi, %rbx
-  	movq	%rax, %rdi
-  	callq	syliTest_file.factorial@PLT
-  	imulq	%rbx, %rax
-  	movq	%rax, 8(%rsp)
-  	jmp	.LBB4_3
-  .LBB4_2:                                # %bb1
-  	movq	$1, 8(%rsp)
-  .LBB4_3:                                # %bb3
-  	movq	8(%rsp), %rax
-  	addq	$16, %rsp
-  	.cfi_def_cfa_offset 16
-  	popq	%rbx
-  	.cfi_def_cfa_offset 8
+  	je	.LBB4_1
+  # %bb.2:                                # %bb2.preheader
+  	movl	%edi, %ecx
+  	andl	$7, %ecx
+  	cmpq	$8, %rdi
+  	jae	.LBB4_4
+  # %bb.3:
+  	movl	$1, %eax
+  	testq	%rcx, %rcx
+  	jne	.LBB4_8
+  	jmp	.LBB4_9
+  .LBB4_1:
+  	movl	$1, %eax
+  	retq
+  .LBB4_4:                                # %bb2.preheader.new
+  	movq	%rdi, %rdx
+  	andq	$-8, %rdx
+  	negq	%rdx
+  	movl	$1, %eax
+  	xorl	%esi, %esi
+  	.p2align	4, 0x90
+  .LBB4_5:                                # %bb2
+                                          # =>This Inner Loop Header: Depth=1
+  	leaq	(%rdi,%rsi), %r8
+  	imulq	%rax, %r8
+  	leaq	(%rdi,%rsi), %rax
+  	decq	%rax
+  	leaq	(%rdi,%rsi), %r9
+  	addq	$-2, %r9
+  	imulq	%rax, %r9
+  	imulq	%r8, %r9
+  	leaq	(%rdi,%rsi), %rax
+  	addq	$-3, %rax
+  	leaq	(%rdi,%rsi), %r8
+  	addq	$-4, %r8
+  	imulq	%rax, %r8
+  	leaq	(%rdi,%rsi), %r10
+  	addq	$-5, %r10
+  	imulq	%r8, %r10
+  	imulq	%r9, %r10
+  	leaq	(%rdi,%rsi), %r8
+  	addq	$-6, %r8
+  	leaq	(%rdi,%rsi), %rax
+  	addq	$-7, %rax
+  	imulq	%r8, %rax
+  	imulq	%r10, %rax
+  	addq	$-8, %rsi
+  	cmpq	%rsi, %rdx
+  	jne	.LBB4_5
+  # %bb.6:                                # %bb3.loopexit.unr-lcssa.loopexit
+  	addq	%rsi, %rdi
+  	testq	%rcx, %rcx
+  	je	.LBB4_9
+  	.p2align	4, 0x90
+  .LBB4_8:                                # %bb2.epil
+                                          # =>This Inner Loop Header: Depth=1
+  	imulq	%rdi, %rax
+  	decq	%rdi
+  	decq	%rcx
+  	jne	.LBB4_8
+  .LBB4_9:                                # %bb3
   	retq
   .Lfunc_end4:
   	.size	syliTest_file.factorial, .Lfunc_end4-syliTest_file.factorial
-  	.cfi_endproc
                                           # -- End function
   	.section	".note.GNU-stack","",@progbits
+  	.addrsig

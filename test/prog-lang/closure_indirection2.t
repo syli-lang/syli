@@ -453,10 +453,10 @@
   
 
 
-  $ opt -passes=mem2reg test_file.ll -S -o test_file_opt.ll
-  $ opt --O3 -S test_file.ll -o test_file_O3.ll
-  $ llc test_file_O3.ll
-  $ cat test_file_O3.s
+  $ clang -O3 -S --target=x86_64-pc-linux-gnu test_file.ll
+  warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]
+  1 warning generated.
+  $ cat test_file.s
   	.text
   	.file	"test_file.ll"
   	.globl	syli_startup_program            # -- Begin function syli_startup_program
@@ -657,3 +657,7 @@
   	.size	__wrapper.syliTest_file.sub.i64_i64_ret_i64, .Lfunc_end12-__wrapper.syliTest_file.sub.i64_i64_ret_i64
                                           # -- End function
   	.section	".note.GNU-stack","",@progbits
+  	.addrsig
+  	.addrsig_sym __make_closure_accum.syliTest_file.add.68_ret_i64
+  	.addrsig_sym __make_closure_accum.syliTest_file.mul.88_ret_i64
+  	.addrsig_sym __make_closure_accum.syliTest_file.sub.78_ret_i64

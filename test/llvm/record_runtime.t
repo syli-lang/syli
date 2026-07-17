@@ -83,61 +83,72 @@
   
 
 
-  $ opt -passes=mem2reg test_e2e_print.ll -S -o test_e2e_print_opt.ll
+  $ clang -O1 -S -emit-llvm --target=x86_64-pc-linux-gnu test_e2e_print.ll -o test_e2e_print_opt.ll
+  warning: overriding the module target triple with x86_64-pc-linux-gnu [-Woverride-module]
+  1 warning generated.
   $ cat test_e2e_print_opt.ll
   ; ModuleID = 'test_e2e_print.ll'
   source_filename = "test_e2e_print.ll"
+  target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+  target triple = "x86_64-pc-linux-gnu"
   
-  declare void @syli_rt_gc_cycle()
+  declare void @syli_rt_gc_cycle() local_unnamed_addr
   
-  declare void @syli_rt_object_check_release(ptr)
+  declare void @syli_rt_object_check_release(ptr) local_unnamed_addr
   
-  declare void @syli_rt_object_decr(ptr)
+  declare void @syli_rt_object_decr(ptr) local_unnamed_addr
   
-  declare ptr @syli_rt_rc_alloc_object(i64, i32, i64)
+  declare ptr @syli_rt_rc_alloc_object(i64, i32, i64) local_unnamed_addr
   
-  declare void @syli_print_i64(i64)
+  declare void @syli_print_i64(i64) local_unnamed_addr
   
-  define i32 @syli_startup_program(i32 %argc, ptr %argv) {
+  define noundef i32 @syli_startup_program(i32 %argc, ptr nocapture readnone %argv) local_unnamed_addr {
   bb0:
-    call void @syli_modules_init()
-    call void @syliTest_e2e_print.main()
+    tail call void @syli_rt_gc_cycle()
+    %Sy_var0.i = tail call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i64 2)
+    %Sy_tmp0.i = getelementptr i64, ptr %Sy_var0.i, i64 2
+    store i64 10, ptr %Sy_tmp0.i, align 4
+    %Sy_tmp3.i = getelementptr i64, ptr %Sy_var0.i, i64 3
+    store i64 30, ptr %Sy_tmp3.i, align 4
+    tail call void @syli_rt_object_decr(ptr %Sy_var0.i)
+    tail call void @syli_rt_object_check_release(ptr %Sy_var0.i)
+    tail call void @syli_print_i64(i64 30)
     ret i32 0
   }
   
-  define void @syli_modules_init() {
-  bb0:
-    call void @__init.Test_e2e_print()
-    ret void
-  }
-  
-  define void @__init.Test_e2e_print() {
+  ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+  define void @syli_modules_init() local_unnamed_addr #0 {
   bb0:
     ret void
   }
   
-  define void @syliTest_e2e_print.main() {
+  ; Function Attrs: mustprogress nofree norecurse nosync nounwind willreturn memory(none)
+  define void @__init.Test_e2e_print() local_unnamed_addr #0 {
   bb0:
-    call void @syli_rt_gc_cycle()
-    %Sy_var0 = call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i64 2)
-    %Sy_tmp0 = getelementptr i64, ptr %Sy_var0, i32 2
-    %Sy_tmp1 = getelementptr i64, ptr %Sy_tmp0, i64 0
-    store i64 10, ptr %Sy_tmp1, align 4
-    %Sy_tmp2 = getelementptr i64, ptr %Sy_var0, i32 2
-    %Sy_tmp3 = getelementptr i64, ptr %Sy_tmp2, i64 1
+    ret void
+  }
+  
+  define void @syliTest_e2e_print.main() local_unnamed_addr {
+  bb0:
+    tail call void @syli_rt_gc_cycle()
+    %Sy_var0 = tail call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i64 2)
+    %Sy_tmp0 = getelementptr i64, ptr %Sy_var0, i64 2
+    store i64 10, ptr %Sy_tmp0, align 4
+    %Sy_tmp3 = getelementptr i64, ptr %Sy_var0, i64 3
     store i64 30, ptr %Sy_tmp3, align 4
-    %Sy_tmp4 = getelementptr i64, ptr %Sy_var0, i32 2
-    %Sy_tmp5 = getelementptr i64, ptr %Sy_tmp4, i64 1
-    %Sy_var1 = load i64, ptr %Sy_tmp5, align 4
-    call void @syli_rt_object_decr(ptr %Sy_var0)
-    call void @syli_rt_object_check_release(ptr %Sy_var0)
-    call void @syli_print_i64(i64 %Sy_var1)
+    tail call void @syli_rt_object_decr(ptr %Sy_var0)
+    tail call void @syli_rt_object_check_release(ptr %Sy_var0)
+    tail call void @syli_print_i64(i64 30)
     ret void
   }
-  $ opt --O2 -S test_e2e_print_opt.ll -o test_e2e_print_opt2.ll
+  
+  attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) }
+  $ clang -O2 -S -emit-llvm --target=x86_64-pc-linux-gnu test_e2e_print_opt.ll -o test_e2e_print_opt2.ll
   $ cat test_e2e_print_opt2.ll
   ; ModuleID = 'test_e2e_print_opt.ll'
   source_filename = "test_e2e_print.ll"
+  target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+  target triple = "x86_64-pc-linux-gnu"
   
   declare void @syli_rt_gc_cycle() local_unnamed_addr
   
@@ -153,9 +164,9 @@
   bb0:
     tail call void @syli_rt_gc_cycle()
     %Sy_var0.i = tail call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i64 2)
-    %Sy_tmp0.i = getelementptr i8, ptr %Sy_var0.i, i64 16
+    %Sy_tmp0.i = getelementptr i64, ptr %Sy_var0.i, i64 2
     store i64 10, ptr %Sy_tmp0.i, align 4
-    %Sy_tmp3.i = getelementptr i8, ptr %Sy_var0.i, i64 24
+    %Sy_tmp3.i = getelementptr i64, ptr %Sy_var0.i, i64 3
     store i64 30, ptr %Sy_tmp3.i, align 4
     tail call void @syli_rt_object_decr(ptr %Sy_var0.i)
     tail call void @syli_rt_object_check_release(ptr %Sy_var0.i)
@@ -179,9 +190,9 @@
   bb0:
     tail call void @syli_rt_gc_cycle()
     %Sy_var0 = tail call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i64 2)
-    %Sy_tmp0 = getelementptr i8, ptr %Sy_var0, i64 16
+    %Sy_tmp0 = getelementptr i64, ptr %Sy_var0, i64 2
     store i64 10, ptr %Sy_tmp0, align 4
-    %Sy_tmp3 = getelementptr i8, ptr %Sy_var0, i64 24
+    %Sy_tmp3 = getelementptr i64, ptr %Sy_var0, i64 3
     store i64 30, ptr %Sy_tmp3, align 4
     tail call void @syli_rt_object_decr(ptr %Sy_var0)
     tail call void @syli_rt_object_check_release(ptr %Sy_var0)
@@ -191,10 +202,12 @@
   
   attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) }
 
-  $ opt --O3 -S test_e2e_print_opt.ll -o test_e2e_print_opt3.ll
+  $ clang -O3 -S -emit-llvm --target=x86_64-pc-linux-gnu test_e2e_print_opt.ll -o test_e2e_print_opt3.ll
   $ cat test_e2e_print_opt3.ll
   ; ModuleID = 'test_e2e_print_opt.ll'
   source_filename = "test_e2e_print.ll"
+  target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
+  target triple = "x86_64-pc-linux-gnu"
   
   declare void @syli_rt_gc_cycle() local_unnamed_addr
   
@@ -210,9 +223,9 @@
   bb0:
     tail call void @syli_rt_gc_cycle()
     %Sy_var0.i = tail call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i64 2)
-    %Sy_tmp0.i = getelementptr i8, ptr %Sy_var0.i, i64 16
+    %Sy_tmp0.i = getelementptr i64, ptr %Sy_var0.i, i64 2
     store i64 10, ptr %Sy_tmp0.i, align 4
-    %Sy_tmp3.i = getelementptr i8, ptr %Sy_var0.i, i64 24
+    %Sy_tmp3.i = getelementptr i64, ptr %Sy_var0.i, i64 3
     store i64 30, ptr %Sy_tmp3.i, align 4
     tail call void @syli_rt_object_decr(ptr %Sy_var0.i)
     tail call void @syli_rt_object_check_release(ptr %Sy_var0.i)
@@ -236,9 +249,9 @@
   bb0:
     tail call void @syli_rt_gc_cycle()
     %Sy_var0 = tail call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i64 2)
-    %Sy_tmp0 = getelementptr i8, ptr %Sy_var0, i64 16
+    %Sy_tmp0 = getelementptr i64, ptr %Sy_var0, i64 2
     store i64 10, ptr %Sy_tmp0, align 4
-    %Sy_tmp3 = getelementptr i8, ptr %Sy_var0, i64 24
+    %Sy_tmp3 = getelementptr i64, ptr %Sy_var0, i64 3
     store i64 30, ptr %Sy_tmp3, align 4
     tail call void @syli_rt_object_decr(ptr %Sy_var0)
     tail call void @syli_rt_object_check_release(ptr %Sy_var0)
@@ -249,7 +262,7 @@
   attributes #0 = { mustprogress nofree norecurse nosync nounwind willreturn memory(none) }
 
 
-  $ llc test_e2e_print_opt3.ll
+  $ clang -O3 -S --target=x86_64-pc-linux-gnu test_e2e_print_opt3.ll
   $ cat test_e2e_print_opt3.s
   	.text
   	.file	"test_e2e_print.ll"
@@ -332,3 +345,4 @@
   	.cfi_endproc
                                           # -- End function
   	.section	".note.GNU-stack","",@progbits
+  	.addrsig

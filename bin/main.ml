@@ -40,11 +40,9 @@ let () =
         let base = Filename.chop_extension (Filename.basename filename) in
         let dir = Filename.dirname filename in
         let ll_file = Filename.concat dir (base ^ ".ll") in
-        let obj_file = Filename.concat dir (base ^ ".o") in
         let exe_file =
           if Array.length Sys.argv > 3 then Sys.argv.(3) else base ^ ".exe"
         in
-        let llc = Sys.getenv_opt "SYLI_LLC" |> Option.value ~default:"llc" in
         let cc = Sys.getenv_opt "SYLI_CC" |> Option.value ~default:"clang" in
         let rt =
           Sys.getenv_opt "SYLI_RUNTIME_LIB"
@@ -53,19 +51,12 @@ let () =
         let oc = open_out ll_file in
         output_string oc llvm_ir;
         close_out oc;
-        let asm =
+        let exe =
           Sys.command
-            (Printf.sprintf "%s -filetype=obj -relocation-model=pic %s -o %s"
-               llc ll_file obj_file)
+            (Printf.sprintf "%s -O3 -Wno-override-module -o %s %s %s -lm" cc
+               exe_file ll_file rt)
         in
-        if asm <> 0 then (
-          Printf.eprintf "error: assembly failed (%s exit code %d)\n" llc asm;
-          exit 1);
-        let link =
-          Sys.command
-            (Printf.sprintf "%s -o %s %s %s -lm" cc exe_file obj_file rt)
-        in
-        if link <> 0 then (
-          Printf.eprintf "error: linking failed (%s exit code %d)\n" cc link;
+        if exe <> 0 then (
+          Printf.eprintf "error: compilation failed (%s exit code %d)\n" cc exe;
           exit 1)
     | _ -> usage ()
