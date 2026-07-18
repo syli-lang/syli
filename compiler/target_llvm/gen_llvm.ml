@@ -64,13 +64,11 @@ let llconst_of_ir_constant (c : Rir.constant) (ty : Rir.ty) : operand =
       LV_Constant (LV_Integer (Int64.of_int code), llty)
   | RR_Null -> null llty
 
-type fn_sig = { params : lltype list; ret : lltype }
-
 type lower_ctx = {
   var_env : operand IntMap.t;
   runtime_decls : lltype StringMap.t;
-  fn_sigs : fn_sig StringMap.t;
-  ffi_syli_names : string StringMap.t;
+  functions : Rir.function_rir StringMap.t;
+  ffi_functions : Rir.ffi_external_function StringMap.t;
   known_globals : StringSet.t;
   next_reg : int;
   block_label_map : int IntMap.t;
@@ -196,26 +194,17 @@ let lower_object_slot_ptr (ctx : lower_ctx) (obj : Rir.operand)
     lower_ctx * instruction list * operand =
   let ctx, obj', extra1 = lower_operand ctx obj in
   let ctx, idx', extra2 = lower_operand ctx field_idx in
-  let object_ty =
-    LV_Struct [ LV_I64; LV_I64; LV_Array (0, LV_I64) ]
-  in
+  let object_ty = LV_Struct [ LV_I64; LV_I64; LV_Array (0, LV_I64) ] in
   let zero = LV_Constant (LV_Integer 0L, LV_I32) in
   let offset =
-    LV_Constant
-      (LV_Integer (Int64.of_int Rir.values_offset), LV_I32)
+    LV_Constant (LV_Integer (Int64.of_int Rir.values_offset), LV_I32)
   in
   let slot_ptr_rhs =
     LV_GEP
-      {
-        base = obj';
-        indices = [ zero; offset; idx' ];
-        result_ty = object_ty;
-      }
+      { base = obj'; indices = [ zero; offset; idx' ]; result_ty = object_ty }
   in
   let ctx, slot_reg = fresh_reg ctx LV_Ptr in
-  ( ctx,
-    extra1 @ extra2 @ [ LV_Assign (slot_reg, slot_ptr_rhs) ],
-    slot_reg )
+  (ctx, extra1 @ extra2 @ [ LV_Assign (slot_reg, slot_ptr_rhs) ], slot_reg)
 
 let is_signed = function
   | RR_I32 | RR_I64 | RR_I16 | RR_I8 -> true
@@ -233,14 +222,14 @@ let lower_compare_integer (op : Rir.binop) (ty : Rir.ir_type) : icmp_cond =
         | CR_Le -> LV_ISle
         | CR_Gt -> LV_ISgt
         | CR_Ge -> LV_ISge
-        | _ -> fail "not a comparison operator"
+        | _ -> fail "not a singed comparison operator"
       else
         match op with
         | CR_Lt -> LV_IUlt
         | CR_Le -> LV_IUle
         | CR_Gt -> LV_IUgt
         | CR_Ge -> LV_IUge
-        | _ -> fail "not a comparison operator")
+        | _ -> fail "not an unsigned comparison operator")
 
 let lower_integer_binop (op : Rir.binop) (ty : Rir.ir_type) : ibinop =
   match op with
@@ -273,18 +262,21 @@ let lower_target_operand (ctx : lower_ctx) (target : Rir.call_target)
     lower_ctx * operand * instruction list =
   let arg_tys = List.map ty_of_operand args in
   match target with
-  | Direct name ->
-      let c_name =
-        match StringMap.find_opt name ctx.ffi_syli_names with
-        | Some c -> c
-        | None -> name
-      in
-      let fn_ty =
-        match StringMap.find_opt c_name ctx.fn_sigs with
-        | Some s -> LV_Func (s.params, s.ret)
-        | None -> LV_Func (arg_tys, ret_ty)
-      in
-      (ctx, global c_name fn_ty, [])
+  | Direct name -> (
+      match StringMap.find_opt name ctx.functions with
+      | Some (fn : Rir.function_rir) ->
+          let params =
+            List.map (fun (v : Rir.var) -> lltype_of_ty v.ty) fn.params
+          in
+          let fn_ty = LV_Func (params, lltype_of_ty fn.return_ty) in
+          (ctx, global name fn_ty, [])
+      | None -> (
+          match StringMap.find_opt name ctx.ffi_functions with
+          | Some ffi ->
+              let params = List.map lltype_of_ty ffi.params in
+              let fn_ty = LV_Func (params, lltype_of_ty ffi.ret_ty) in
+              (ctx, global ffi.name fn_ty, [])
+          | None -> (ctx, global name (LV_Func (arg_tys, ret_ty)), [])))
   | Indirect v -> (
       let ctx, op, extra = lower_operand ctx (RR_OVar v) in
       match ty_of_operand op with
@@ -602,21 +594,6 @@ let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
         | CR_Private -> Private);
     } )
 
-let build_fn_sig_table (prog : Rir.program_rir) : fn_sig StringMap.t =
-  List.fold_left
-    (fun map (fn : Rir.function_rir) ->
-      let params =
-        List.map (fun (v : Rir.var) -> lltype_of_ty v.ty) fn.params
-      in
-      let ret = lltype_of_ty fn.return_ty in
-      StringMap.add fn.name { params; ret } map)
-    StringMap.empty prog.functions
-
-let lower_ffi_decl (ffi : Rir.ffi_external_function) : string * lltype =
-  let lower = fun ty -> lltype_of_ty ty in
-  let params = List.map lower ffi.params in
-  (ffi.name, LV_Func (params, lower ffi.ret_ty))
-
 let lower_global (g : Rir.global_value) : global_var =
   let g_type = lltype_of_ty g.ty in
   let g_init =
@@ -647,30 +624,6 @@ let lower_global (g : Rir.global_value) : global_var =
   }
 
 let lower_program (prog : Rir.program_rir) : module_ =
-  let ffi_syli_names =
-    List.fold_left
-      (fun map (ffi : Rir.ffi_external_function) ->
-        StringMap.add ffi.syli_name ffi.name map)
-      StringMap.empty prog.ffi_external_functions
-  in
-  let known_globals =
-    List.fold_left
-      (fun set (gv : Rir.global_value) -> StringSet.add gv.name set)
-      StringSet.empty prog.global_values
-  in
-  let ctx0 : lower_ctx =
-    {
-      var_env = IntMap.empty;
-      runtime_decls = StringMap.empty;
-      fn_sigs = build_fn_sig_table prog;
-      ffi_syli_names;
-      known_globals;
-      next_reg = 0;
-      block_label_map = IntMap.empty;
-      str_data = StringMap.empty;
-      allocas = StringMap.empty;
-    }
-  in
   let final_ctx, functions =
     List.fold_left_map
       (fun ctx (fn : Rir.function_rir) ->
@@ -696,7 +649,28 @@ let lower_program (prog : Rir.program_rir) : module_ =
             str_data = fn_ctx_after.str_data;
           },
           fn_result ))
-      ctx0 prog.functions
+      {
+        var_env = IntMap.empty;
+        runtime_decls = StringMap.empty;
+        functions =
+          List.fold_left
+            (fun map (fn : Rir.function_rir) -> StringMap.add fn.name fn map)
+            StringMap.empty prog.functions;
+        ffi_functions =
+          List.fold_left
+            (fun map (ffi : Rir.ffi_external_function) ->
+              StringMap.add ffi.syli_name ffi map)
+            StringMap.empty prog.ffi_external_functions;
+        known_globals =
+          List.fold_left
+            (fun set (gv : Rir.global_value) -> StringSet.add gv.name set)
+            StringSet.empty prog.global_values;
+        next_reg = 0;
+        block_label_map = IntMap.empty;
+        str_data = StringMap.empty;
+        allocas = StringMap.empty;
+      }
+      prog.functions
   in
   let runtime_declarations =
     StringMap.fold
@@ -704,7 +678,13 @@ let lower_program (prog : Rir.program_rir) : module_ =
       final_ctx.runtime_decls []
     |> List.sort compare
   in
-  let ffi_declarations = List.map lower_ffi_decl prog.ffi_external_functions in
+  let ffi_declarations =
+    List.map
+      (fun (ffi : Rir.ffi_external_function) ->
+        let params = List.map lltype_of_ty ffi.params in
+        (ffi.name, LV_Func (params, lltype_of_ty ffi.ret_ty)))
+      prog.ffi_external_functions
+  in
   let declarations = runtime_declarations @ ffi_declarations in
   let globals =
     let str_globals =
