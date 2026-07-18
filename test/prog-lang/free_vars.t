@@ -65,16 +65,13 @@ Closure with free variables:
     %syliTest_multi.apply__add = call ptr @syli_rt_rc_alloc_object(i64 2305843009213693954, i32 1, i32 2)
     ; nop
     %Sy_accum_fn_0 = bitcast ptr @__make_closure_accum.syliTest_multi.apply__add.27_ret_i64 to ptr
-    %Sy_tmp0 = getelementptr i64, ptr %syliTest_multi.apply__add, i32 2
-    %Sy_tmp1 = getelementptr i64, ptr %Sy_tmp0, i32 0
-    store ptr %Sy_accum_fn_0, ptr %Sy_tmp1
-    %Sy_tmp2 = getelementptr i64, ptr %syliTest_multi.apply__add, i32 2
-    %Sy_tmp3 = getelementptr i64, ptr %Sy_tmp2, i32 1
-    store i64 1, ptr %Sy_tmp3
+    %Sy_tmp0 = getelementptr { i64, i64, [0 x i64] }, ptr %syliTest_multi.apply__add, i32 0, i32 2, i32 0
+    store ptr %Sy_accum_fn_0, ptr %Sy_tmp0
+    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr %syliTest_multi.apply__add, i32 0, i32 2, i32 1
+    store i64 1, ptr %Sy_tmp1
     ; nop
-    %Sy_tmp4 = getelementptr i64, ptr %syliTest_multi.apply__add, i32 2
-    %Sy_tmp5 = getelementptr i64, ptr %Sy_tmp4, i32 0
-    %Sy_accum_ptr_1 = load ptr, ptr %Sy_tmp5
+    %Sy_tmp2 = getelementptr { i64, i64, [0 x i64] }, ptr %syliTest_multi.apply__add, i32 0, i32 2, i32 0
+    %Sy_accum_ptr_1 = load ptr, ptr %Sy_tmp2
     %Sy_var0 = call i64 %Sy_accum_ptr_1(i64 1, i64 2, ptr %syliTest_multi.apply__add, i64 0)
     call void @syli_rt_object_decr(ptr %syliTest_multi.apply__add)
     call void @syli_rt_object_check_release(ptr %syliTest_multi.apply__add)
@@ -90,12 +87,10 @@ Closure with free variables:
   
   define i64 @__make_closure_accum.syliTest_multi.apply__add.27_ret_i64(i64 %Sy_x0, i64 %Sy_x1, ptr %Sy_clos, i64 %Sy_dp_id) {
   bb0:
-    %Sy_tmp0 = getelementptr i64, ptr %Sy_clos, i32 2
-    %Sy_tmp1 = getelementptr i64, ptr %Sy_tmp0, i64 1
-    %Sy_val0 = load i64, ptr %Sy_tmp1
-    %Sy_tmp2 = getelementptr i64, ptr %Sy_clos, i32 2
-    %Sy_tmp3 = getelementptr i64, ptr %Sy_tmp2, i64 2
-    %Sy_val1 = load i64, ptr %Sy_tmp3
+    %Sy_tmp0 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_clos, i32 0, i32 2, i64 1
+    %Sy_val0 = load i64, ptr %Sy_tmp0
+    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_clos, i32 0, i32 2, i64 2
+    %Sy_val1 = load i64, ptr %Sy_tmp1
     %Sy_rst = call i64 @__wrapper.syliTest_multi.apply__add.i64_i64_i64_ret_i64(i64 %Sy_val0, i64 %Sy_val1, i64 %Sy_x0, i64 %Sy_x1)
     ret i64 %Sy_rst
   }

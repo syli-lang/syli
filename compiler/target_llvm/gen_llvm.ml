@@ -39,7 +39,8 @@ let parse_float (s : string) : float =
 let bool_of_string (s : string) : bool =
   match String.lowercase_ascii (String.trim s) with
   | "1" | "true" -> true
-  | _ -> false
+  | "0" | "false" -> false
+  | _ -> failwith ("invalid bool string:" ^ s)
 
 let var_name (v : Rir.var) : string = v.fullname
 
@@ -86,7 +87,12 @@ let add_decl_if_missing (ctx : lower_ctx) (name : string) (ty : lltype) :
   if StringMap.mem name ctx.runtime_decls then ctx
   else { ctx with runtime_decls = StringMap.add name ty ctx.runtime_decls }
 
-let fresh_global_id = Syli_ir.Cir.fresh_id
+let fresh_global_id =
+  let counter = ref 0 in
+  fun () ->
+    incr counter;
+    !counter
+
 let str_ty = LV_Struct [ LV_Ptr; LV_I64 ]
 
 let rec lower_operand (ctx : lower_ctx) (op : Rir.operand) :
@@ -190,30 +196,25 @@ let lower_object_slot_ptr (ctx : lower_ctx) (obj : Rir.operand)
     lower_ctx * instruction list * operand =
   let ctx, obj', extra1 = lower_operand ctx obj in
   let ctx, idx', extra2 = lower_operand ctx field_idx in
-  let values_ptr_rhs =
+  let object_ty =
+    LV_Struct [ LV_I64; LV_I64; LV_Array (0, LV_I64) ]
+  in
+  let zero = LV_Constant (LV_Integer 0L, LV_I32) in
+  let offset =
+    LV_Constant
+      (LV_Integer (Int64.of_int Rir.values_offset), LV_I32)
+  in
+  let slot_ptr_rhs =
     LV_GEP
       {
         base = obj';
-        indices =
-          [
-            llconst_of_ir_constant
-              (RR_IntLit (string_of_int Rir.values_offset))
-              { id = fresh_global_id (); ty = RR_I32 };
-          ];
-        result_ty = LV_I64;
+        indices = [ zero; offset; idx' ];
+        result_ty = object_ty;
       }
-  in
-  let ctx, values_ptr_reg = fresh_reg ctx LV_Ptr in
-  let slot_ptr_rhs =
-    LV_GEP { base = values_ptr_reg; indices = [ idx' ]; result_ty = LV_I64 }
   in
   let ctx, slot_reg = fresh_reg ctx LV_Ptr in
   ( ctx,
-    extra1 @ extra2
-    @ [
-        LV_Assign (values_ptr_reg, values_ptr_rhs);
-        LV_Assign (slot_reg, slot_ptr_rhs);
-      ],
+    extra1 @ extra2 @ [ LV_Assign (slot_reg, slot_ptr_rhs) ],
     slot_reg )
 
 let is_signed = function

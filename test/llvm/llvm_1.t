@@ -55,7 +55,7 @@ String literal emits an i8* return:
   > EOF
   $ dune exec sylic -- llvm test_str.sy
   @syliTest_str.s = global { ptr, i64 } zeroinitializer
-  @__str.41 = global [5 x i8] c"hello"
+  @__str.1 = global [5 x i8] c"hello"
   
   define void @__init.Test_str() {
   bb0:
@@ -66,7 +66,7 @@ String literal emits an i8* return:
   
   define { ptr, i64 } @__init_global.syliTest_str.s() {
   bb0:
-    %Sy_tmp0 = getelementptr i8, ptr @__str.41, i32 0
+    %Sy_tmp0 = getelementptr i8, ptr @__str.1, i32 0
     %Sy_tmp1 = insertvalue { ptr, i64 } zeroinitializer, ptr %Sy_tmp0, 0
     %Sy_tmp2 = insertvalue { ptr, i64 } %Sy_tmp1, i64 5, 1
     ret { ptr, i64 } %Sy_tmp2

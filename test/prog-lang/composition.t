@@ -102,9 +102,8 @@
     %Sy_var0 = call ptr @syli_rt_rc_alloc_object(i64 2305843009213693953, i32 1, i32 1)
     ; nop
     %Sy_accum_fn_0 = bitcast ptr @__make_closure_accum.syliTest_file.id.54_ret_i64 to ptr
-    %Sy_tmp0 = getelementptr i64, ptr %Sy_var0, i32 2
-    %Sy_tmp1 = getelementptr i64, ptr %Sy_tmp0, i32 0
-    store ptr %Sy_accum_fn_0, ptr %Sy_tmp1
+    %Sy_tmp0 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_var0, i32 0, i32 2, i32 0
+    store ptr %Sy_accum_fn_0, ptr %Sy_tmp0
     ; nop
     %Sy_var1 = call i64 @syliTest_file.apply_twice__fn_i64_i64__i64_ret_i64(ptr %Sy_var0, i64 10)
     call void @syli_rt_object_decr(ptr %Sy_var0)
@@ -115,14 +114,12 @@
   
   define i64 @syliTest_file.apply_twice__fn_i64_i64__i64_ret_i64(ptr %f, i64 %x) {
   bb0:
-    %Sy_tmp0 = getelementptr i64, ptr %f, i32 2
-    %Sy_tmp1 = getelementptr i64, ptr %Sy_tmp0, i32 0
-    %Sy_accum_ptr_1 = load ptr, ptr %Sy_tmp1
+    %Sy_tmp0 = getelementptr { i64, i64, [0 x i64] }, ptr %f, i32 0, i32 2, i32 0
+    %Sy_accum_ptr_1 = load ptr, ptr %Sy_tmp0
     %Sy_var0 = call i64 %Sy_accum_ptr_1(i64 %x, ptr %f, i64 0)
     ; nop
-    %Sy_tmp2 = getelementptr i64, ptr %f, i32 2
-    %Sy_tmp3 = getelementptr i64, ptr %Sy_tmp2, i32 0
-    %Sy_accum_ptr_2 = load ptr, ptr %Sy_tmp3
+    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr %f, i32 0, i32 2, i32 0
+    %Sy_accum_ptr_2 = load ptr, ptr %Sy_tmp1
     %Sy_var1 = call i64 %Sy_accum_ptr_2(i64 %Sy_var0, ptr %f, i64 0)
     ; nop
     ret i64 %Sy_var1
