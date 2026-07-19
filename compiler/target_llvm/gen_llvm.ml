@@ -74,6 +74,7 @@ type lower_ctx = {
   block_label_map : int IntMap.t;
   str_data : string StringMap.t;
   allocas : lltype StringMap.t;
+  need_unreachable : bool;
 }
 
 let fresh_reg (ctx : lower_ctx) (ty : lltype) : lower_ctx * operand =
@@ -206,39 +207,44 @@ let lower_object_slot_ptr (ctx : lower_ctx) (obj : Rir.operand)
   let ctx, slot_reg = fresh_reg ctx LV_Ptr in
   (ctx, extra1 @ extra2 @ [ LV_Assign (slot_reg, slot_ptr_rhs) ], slot_reg)
 
-let is_signed = function
-  | RR_I32 | RR_I64 | RR_I16 | RR_I8 -> true
-  | RR_U32 | RR_U64 | RR_U16 | RR_U8 -> false
+type signedness_kind = Signed | Unsigned
+
+let signedness_kind = function
+  | RR_I32 | RR_I64 | RR_I16 | RR_I8 -> Signed
+  | RR_U32 | RR_U64 | RR_U16 | RR_U8 -> Unsigned
   | _ -> fail "type does not have signedness"
+
+type binop_kind = Cmp | FloatArith | IntArith
+
+let binop_kind (op : Rir.binop) (ty : Rir.ir_type) : binop_kind =
+  match op with
+  | CR_Eq | CR_Ne | CR_Lt | CR_Le | CR_Gt | CR_Ge -> Cmp
+  | _ -> if is_float_ir_type ty then FloatArith else IntArith
 
 let lower_compare_integer (op : Rir.binop) (ty : Rir.ir_type) : icmp_cond =
   match op with
   | CR_Eq -> LV_IEq
   | CR_Ne -> LV_INe
   | _ -> (
-      if is_signed ty then
-        match op with
-        | CR_Lt -> LV_ISlt
-        | CR_Le -> LV_ISle
-        | CR_Gt -> LV_ISgt
-        | CR_Ge -> LV_ISge
-        | _ -> fail "not a singed comparison operator"
-      else
-        match op with
-        | CR_Lt -> LV_IUlt
-        | CR_Le -> LV_IUle
-        | CR_Gt -> LV_IUgt
-        | CR_Ge -> LV_IUge
-        | _ -> fail "not an unsigned comparison operator")
+      match (op, signedness_kind ty) with
+      | CR_Lt, Signed -> LV_ISlt
+      | CR_Lt, Unsigned -> LV_IUlt
+      | CR_Le, Signed -> LV_ISle
+      | CR_Le, Unsigned -> LV_IUle
+      | CR_Gt, Signed -> LV_ISgt
+      | CR_Gt, Unsigned -> LV_IUgt
+      | CR_Ge, Signed -> LV_ISge
+      | CR_Ge, Unsigned -> LV_IUge
+      | _ -> failwith "unsuported operation")
 
 let lower_integer_binop (op : Rir.binop) (ty : Rir.ir_type) : ibinop =
   match op with
   | CR_Add -> LV_IAdd
   | CR_Sub -> LV_ISub
   | CR_Mul -> LV_IMul
-  | CR_Div when is_signed ty -> LV_ISDiv
+  | CR_Div when signedness_kind ty = Signed -> LV_ISDiv
   | CR_Div -> LV_IUDiv
-  | CR_Mod when is_signed ty -> LV_ISRem
+  | CR_Mod when signedness_kind ty = Signed -> LV_ISRem
   | CR_Mod -> LV_IURem
   | CR_BitAnd -> LV_IBitAnd
   | CR_BitOr | CR_Or -> LV_IBitOr
@@ -294,26 +300,25 @@ let lower_target_operand (ctx : lower_ctx) (target : Rir.call_target)
 let lower_rvalue_rhs (ctx : lower_ctx) (rv : Rir.rvalue) :
     lower_ctx * instr_rhs * instruction list =
   match rv.node with
-  | Rir.RR_BinOp { op; lhs; rhs } ->
+  | Rir.RR_BinOp { op; lhs; rhs } -> (
       let ctx, lhs', extra1 = lower_operand ctx lhs in
       let ctx, rhs', extra2 = lower_operand ctx rhs in
-      if
-        match op with
-        | CR_Eq | CR_Ne | CR_Lt | CR_Le | CR_Gt | CR_Ge -> true
-        | _ -> false
-      then
-        let operand_ty =
-          match lhs with RR_OConstant (_, ty) -> ty.ty | RR_OVar v -> v.ty.ty
-        in
-        ( ctx,
-          LV_ICmp (lower_compare_integer op operand_ty, lhs', rhs'),
-          extra1 @ extra2 )
-      else if is_float_ir_type rv.ty.ty then
-        (ctx, LV_FBinOp (lower_float_binop op, lhs', rhs'), extra1 @ extra2)
-      else
-        ( ctx,
-          LV_IBinOp (lower_integer_binop op rv.ty.ty, lhs', rhs'),
-          extra1 @ extra2 )
+      match binop_kind op rv.ty.ty with
+      | Cmp ->
+          let operand_ty =
+            match lhs with
+            | RR_OConstant (_, ty) -> ty.ty
+            | RR_OVar v -> v.ty.ty
+          in
+          ( ctx,
+            LV_ICmp (lower_compare_integer op operand_ty, lhs', rhs'),
+            extra1 @ extra2 )
+      | FloatArith ->
+          (ctx, LV_FBinOp (lower_float_binop op, lhs', rhs'), extra1 @ extra2)
+      | IntArith ->
+          ( ctx,
+            LV_IBinOp (lower_integer_binop op rv.ty.ty, lhs', rhs'),
+            extra1 @ extra2 ))
   | Rir.RR_UnOp { op; operand } -> (
       let ctx, value, extra = lower_operand ctx operand in
       let value_ty = ty_of_operand value in
@@ -360,18 +365,18 @@ let lower_rvalue_rhs (ctx : lower_ctx) (rv : Rir.rvalue) :
       (ctx, LV_Cast (LV_BitCast, fn_ptr, ptr_ty), [])
 
 let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
-    lower_ctx * instruction list =
+    lower_ctx * instruction list list =
   match stmt.node with
   | Rir.RR_Assign { dst; rvalue = { node = Rir.RR_Cast { src; to_ty }; _ } } ->
       let ctx, src', extra = lower_operand ctx src in
       if ty_of_operand src' = lltype_of_ty to_ty then
-        ({ ctx with var_env = IntMap.add dst.id src' ctx.var_env }, extra)
+        ({ ctx with var_env = IntMap.add dst.id src' ctx.var_env }, [ extra ])
       else
         let ctx, instrs =
           assign_rhs_to_var ctx dst
             (LV_Cast (LV_BitCast, src', lltype_of_ty to_ty))
         in
-        (ctx, extra @ instrs)
+        (ctx, [ extra; instrs ])
   | Rir.RR_Assign
       {
         dst;
@@ -384,11 +389,11 @@ let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
         assign_rhs_to_var ctx dst
           (LV_Load { ptr = typed_ptr; ty = lltype_of_ty value_ty })
       in
-      (ctx, ptr_instrs @ instrs)
+      (ctx, [ ptr_instrs; instrs ])
   | Rir.RR_Assign { dst; rvalue } ->
       let ctx, rhs, extra = lower_rvalue_rhs ctx rvalue in
       let ctx, instrs = assign_rhs_to_var ctx dst rhs in
-      (ctx, extra @ instrs)
+      (ctx, [ extra; instrs ])
   | Rir.RR_Call { dst; target; args } ->
       let ctx, args_results =
         List.fold_left_map
@@ -405,7 +410,7 @@ let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
       in
       let rhs = LV_Call { fn = fn_op; args = args_ops; ret_ty } in
       let ctx, instrs = assign_rhs_to_var ctx dst rhs in
-      (ctx, extra @ extra2 @ instrs)
+      (ctx, [ extra; extra2; instrs ])
   | Rir.RR_Runtime_call { dst; call = { fn_name; args; ret_ty = _ } } ->
       let ctx, args_results =
         List.fold_left_map
@@ -420,13 +425,13 @@ let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
       let fn_name = Rir.runtime_op_name_to_string fn_name in
       let ctx, rhs = call_rhs ctx ~fn_name ~ret_ty ~args:args_ops in
       let ctx, instrs = assign_rhs_to_var ctx dst rhs in
-      (ctx, extra @ instrs)
+      (ctx, [ extra; instrs ])
   | Rir.RR_Object_store { obj; field_idx; value; value_ty } ->
       let ctx, ptr_instrs, typed_ptr =
         lower_object_slot_ptr ctx obj field_idx value_ty
       in
       let ctx, value_ops, extra = lower_operand ctx value in
-      (ctx, ptr_instrs @ extra @ [ LV_Store (value_ops, typed_ptr) ])
+      (ctx, [ ptr_instrs; extra; [ LV_Store (value_ops, typed_ptr) ] ])
   | Rir.RR_Move { dst; src } ->
       let val_ty = lltype_of_ty dst.ty in
       let ptr_op = LV_Local (var_name dst, LV_Ptr) in
@@ -440,11 +445,11 @@ let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
         }
       in
       let ctx, src_ops, extra = lower_operand ctx src in
-      (ctx, extra @ [ LV_Store (src_ops, ptr_op) ])
+      (ctx, [ extra; [ LV_Store (src_ops, ptr_op) ] ])
   | Rir.RR_Store_global { global = global_name; value } ->
       let ctx, gv, extra = lower_operand ctx value in
-      (ctx, extra @ [ LV_Store (gv, global global_name LV_Ptr) ])
-  | Rir.RR_Nop -> (ctx, [ LV_Comment "nop" ])
+      (ctx, [ extra; [ LV_Store (gv, global global_name LV_Ptr) ] ])
+  | Rir.RR_Nop -> (ctx, [ [ LV_Comment "nop" ] ])
 
 let lower_terminator (ctx : lower_ctx) (term : Rir.terminator) :
     lower_ctx * terminator * instruction list =
@@ -464,10 +469,12 @@ let lower_terminator (ctx : lower_ctx) (term : Rir.terminator) :
         extra )
   | RR_Switch { scrutinee; cases; default_block } ->
       let ctx, scrutinee_op, extra = lower_operand ctx (RR_OVar scrutinee) in
-      let default_label =
+      let default_label, ctx =
         match default_block with
-        | Some id -> label_of_block_id (IntMap.find id ctx.block_label_map)
-        | None -> "switch_default_unreachable"
+        | Some id ->
+            (label_of_block_id (IntMap.find id ctx.block_label_map), ctx)
+        | None ->
+            ("switch_default_unreachable", { ctx with need_unreachable = true })
       in
       let cases' =
         List.map
@@ -485,22 +492,8 @@ let lower_terminator (ctx : lower_ctx) (term : Rir.terminator) :
           let ctx, op', extra = lower_operand ctx op in
           (ctx, LV_Ret (Some op'), extra))
 
-let unique_blocks (fn : Rir.function_rir) : Rir.block list =
-  let seen = Hashtbl.create 16 in
-  let all = fn.entry_block :: fn.blocks in
-  List.filter
-    (fun (b : Rir.block) ->
-      if Hashtbl.mem seen b.id then false
-      else (
-        Hashtbl.add seen b.id true;
-        true))
-    all
-
 let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
     =
-  let ctx =
-    { ctx with var_env = IntMap.empty; next_reg = 0; allocas = StringMap.empty }
-  in
   let ctx =
     List.fold_left
       (fun ctx (v : Rir.var) ->
@@ -524,21 +517,22 @@ let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
       ctx fn.locals
   in
   let final_ctx, blocks =
-    unique_blocks fn
+    fn.blocks
     |> List.fold_left_map
          (fun ctx (b : Rir.block) ->
            let ctx, stmt_instrs =
              List.fold_left
                (fun (ctx, acc) stmt ->
                  let ctx, instrs = lower_statement ctx stmt in
-                 (ctx, acc @ instrs))
+                 (ctx, instrs :: acc))
                (ctx, []) b.statements
            in
            let ctx, term, extra = lower_terminator ctx b.terminator in
            ( ctx,
              {
                label = label_of_block_id b.label_id;
-               instructions = stmt_instrs @ extra;
+               instructions =
+                 List.flatten (List.flatten (List.rev stmt_instrs)) @ extra;
                terminator = term;
              } ))
          ctx
@@ -550,17 +544,8 @@ let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
             LV_Assign (LV_Local (name, LV_Ptr), LV_Alloca ty) :: acc)
           final_ctx.allocas []
       in
-      let need_unreachable =
-        let has_no_default_switch (b : Rir.block) =
-          match b.terminator.node with
-          | RR_Switch { default_block = None; _ } -> true
-          | _ -> false
-        in
-        has_no_default_switch fn.entry_block
-        || List.exists has_no_default_switch fn.blocks
-      in
       let blocks =
-        if need_unreachable then
+        if final_ctx.need_unreachable then
           blocks
           @ [
               {
@@ -640,6 +625,7 @@ let lower_program (prog : Rir.program_rir) : module_ =
             next_reg = 0;
             block_label_map;
             allocas = StringMap.empty;
+            need_unreachable = false;
           }
         in
         let fn_ctx_after, fn_result = lower_function fn_ctx fn in
@@ -669,6 +655,7 @@ let lower_program (prog : Rir.program_rir) : module_ =
         block_label_map = IntMap.empty;
         str_data = StringMap.empty;
         allocas = StringMap.empty;
+        need_unreachable = false;
       }
       prog.functions
   in
