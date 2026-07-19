@@ -51,6 +51,7 @@ _opam/
 *.so
 *.dylib
 *.out
+*.ll
 
 # runtime
 runtime/build

@@ -4,7 +4,7 @@
 
 ## Overview
 
-Syli is a multi-purpose programming language with a core functional language. The runtime is a refcount based system with tracing fallback for completeness to avoid supporting weak-references.
+Syli is a general-purpose programming language with a core functional language. The runtime is a refcount based system with tracing fallback for completeness to avoid supporting weak-references.
 
 The goal of this language is to have low latency, high performance with more expressivity. The language is compiled into native code.
 

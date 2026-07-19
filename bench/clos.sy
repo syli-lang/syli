@@ -1,0 +1,17 @@
+signature:
+  extern syli_print_i64 : int64 -> unit = "syli_print_i64"
+end
+let rec add_n n x = n + x
+let rec apply_n f x n =
+  if n == 0 then
+    x
+  else
+    apply_n f (f x) (n - 1)
+let rec stress n acc =
+  if n == 0 then
+    acc
+  else
+    let f = add_n n
+    let r = apply_n f 0 100
+    stress (n - 1) (acc + r)
+fn main () = syli_print_i64(stress 1000 0)
