@@ -11,6 +11,6 @@ typedef struct {
 
 extern Syli_Env syli_env;
 
-void load_env();
+void syli_load_env();
 
 #endif

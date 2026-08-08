@@ -16,6 +16,7 @@ SYLI_TLS Syli_state syli_state;
 void syli_state_init()
 {
     syli_rt_stackmap_check_version();
+    syli_load_env();
 
     // Zero out the entire state to ensure clean initialization
     memset(&syli_state, 0, sizeof(Syli_state));

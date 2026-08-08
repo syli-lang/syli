@@ -10,7 +10,9 @@
 #include "syli/syli_state.h"
 
 #if defined(__APPLE__)
+#include <mach-o/getsect.h>
 #include <unwind.h>
+extern struct mach_header_64 _mh_execute_header;
 #else
 #include <libunwind.h>
 #endif
@@ -20,11 +22,7 @@
 #include <string.h>
 
 #if defined(__APPLE__)
-/* Mach-O: ld64 defines section bounds symbols */
-extern char section$start$__LLVM_STACKMAPS$__llvm_stackmaps[]
-    __attribute__((weak));
-extern char section$end$__LLVM_STACKMAPS$__llvm_stackmaps[]
-    __attribute__((weak));
+/* Getting the __LLVM_STACKMAPS section dynamically */
 #else
 extern unsigned char __start_llvm_stackmaps[] __attribute__((weak));
 extern unsigned char __stop_llvm_stackmaps[] __attribute__((weak));
@@ -35,8 +33,16 @@ extern unsigned char __stop_llvm_stackmaps[] __attribute__((weak));
 static void stackmap_bounds(unsigned char** start, unsigned char** stop)
 {
 #if defined(__APPLE__)
-    *start = (unsigned char*)section$start$__LLVM_STACKMAPS$__llvm_stackmaps;
-    *stop  = (unsigned char*)section$end$__LLVM_STACKMAPS$__llvm_stackmaps;
+    unsigned long size = 0;
+    uint8_t* data      = getsectiondata(
+        &_mh_execute_header, "__LLVM_STACKMAPS", "__llvm_stackmaps", &size);
+    if (data != NULL) {
+        *start = data;
+        *stop  = data + size;
+    } else {
+        *start = NULL;
+        *stop  = NULL;
+    }
 #else
     *start = __start_llvm_stackmaps;
     *stop  = __stop_llvm_stackmaps;
