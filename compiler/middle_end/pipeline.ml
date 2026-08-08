@@ -16,7 +16,7 @@ let run (fmt : t) (filename : string) : string =
   let cir_to_oir (ctx : Pipeline_types.cir_mono_ctx) =
     ctx |> Lower_cir_to_oir.lower
   in
-  let oir_to_rir ctx = Lower_oir_to_rir.lower ctx in
+  let oir_to_rir ctx = Lower_oir_to_rir.lower ctx |> Pass_notify_mutation.run in
   let prepared (ctx : Pipeline_types.rir_ctx) = Exec_unit.prepare_module ctx in
   let pp_oir (ctx : Pipeline_types.oir_ctx) =
     let functions = ctx.module_oir.functions @ ctx.apply_gen_functions in

@@ -2,6 +2,7 @@
  (public_name sylic)
  (name main)
  (libraries
+  unix
   syli_common
   syli_parsing
   syli_typing

@@ -34,7 +34,7 @@ let runtime_op_name_to_string = function
   | RR_RT_gc_cycle -> "syli_rt_gc_cycle"
   | RR_RT_object_raw_copy -> "syli_rt_object_raw_copy"
   | RR_RT_object_copy -> "syli_rt_object_copy"
-  | RR_RT_object_check_mutation -> "syli_rt_object_check_mutation"
+  | RR_RT_object_check_mutation -> "syli_rt_ownership_notify_mutation"
   | RR_RT_object_borrow -> "syli_rt_ownership_borrow"
   | RR_RT_object_share -> "syli_rt_ownership_share"
   | RR_RT_object_own -> "syli_rt_ownership_own"
@@ -46,6 +46,7 @@ type qualified_name = Cir.qualified_name
 type binop = Cir.binop
 type unop = Cir.unop
 type visibility = Cir.visibility
+type cyclic_prop = Oir.cyclic_prop
 
 let expr_id_counter = ref 0
 
@@ -65,14 +66,12 @@ type ir_type =
   | RR_U8
   | RR_Float
   | RR_Double
-  | RR_Obj_Ptr
+  | RR_Obj_Ptr of cyclic_prop
   | RR_FnPtr
   | RR_Char
   | RR_Str
   | RR_Void
   | RR_Arrow of ir_type list * ir_type
-
-let object_ptr_ty = RR_Obj_Ptr
 
 type constant =
   | RR_IntLit of string

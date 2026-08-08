@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "syli/config.h"
 #include "syli/gc_helpers.h"
 #include "syli/syli.h"
 #include "syli/syli_state.h"
@@ -393,6 +392,7 @@ static void test_rt_object_notify_mutation(void)
         assert(gc_is_object_mark_tagged(obj_o));
         assert(!gc_is_object_mark_tagged(target_o));
 
+        syli_state.tracing_state = Tracing;
         syli_rt_ownership_notify_mutation(obj, target);
 
         assert(gc_is_object_mark_tagged(target_o));
@@ -422,6 +422,7 @@ static void test_rt_object_notify_mutation(void)
 
         assert(!gc_is_object_mark_tagged(syli_object_of_obj_ptr(obj)));
 
+        syli_state.tracing_state = Tracing;
         syli_rt_ownership_notify_mutation(obj, target);
 
         assert(
@@ -450,6 +451,7 @@ static void test_rt_object_notify_mutation(void)
 
         assert(!syli_object_is_traceable(obj_o));
 
+        syli_state.tracing_state = Tracing;
         syli_rt_ownership_notify_mutation(obj, target);
 
         assert(
@@ -479,6 +481,7 @@ static void test_rt_object_notify_mutation(void)
         assert(gc_is_object_mark_tagged(obj_o));
         assert(gc_is_object_mark_tagged(target_o));
 
+        syli_state.tracing_state = Tracing;
         syli_rt_ownership_notify_mutation(obj, target);
 
         assert(
@@ -530,6 +533,7 @@ static void test_rt_object_notify_mutation(void)
 
         assert(!syli_object_is_traceable(obj_o));
 
+        syli_state.tracing_state = Tracing;
         syli_rt_ownership_notify_mutation(obj, target);
 
         assert(
@@ -559,6 +563,7 @@ static void test_rt_object_notify_mutation(void)
         assert(gc_is_object_mark_tagged(obj_o));
         assert(gc_is_object_mark_tagged(target_o));
 
+        syli_state.tracing_state = Tracing;
         syli_rt_ownership_notify_mutation(obj, target);
 
         assert(
@@ -595,6 +600,41 @@ static void test_rt_object_notify_mutation(void)
     printf("✓ syli_rt_object_notify_mutation works correctly\n\n");
 }
 
+static void test_rt_ownership_own(void)
+{
+    printf("Test 10: syli_rt_ownership_own()\n");
+
+    syli_state_init();
+
+    obj_ptr own_ref
+        = make_object(Zone_GcLocal, Acyclic, Type_MonoImm, Flag_None, 1);
+    assert(own_ref != NULL);
+    Object* o = syli_object_of_obj_ptr(own_ref);
+    assert(syli_object_refcount(o) == 1);
+    assert(syli_ownership_is_own_ref(own_ref));
+
+    /* own() on an already-owned ref is a no-op */
+    obj_ptr result = syli_rt_ownership_own(own_ref);
+    assert(result == own_ref);
+    assert(syli_object_refcount(o) == 1);
+
+    /* own() on a borrowed (untagged) ref promotes: +1 refcount, own result */
+    obj_ptr borrowed = syli_rt_ownership_borrow(own_ref);
+    assert(!syli_ownership_is_own_ref(borrowed));
+
+    obj_ptr promoted = syli_rt_ownership_own(borrowed);
+    assert(syli_ownership_is_own_ref(promoted));
+    assert(syli_object_refcount(o) == 2);
+
+    syli_rt_ownership_decr(promoted);
+    assert(syli_object_refcount(o) == 1);
+
+    syli_free_ptr(own_ref);
+    syli_state_destroy();
+
+    printf("✓ syli_rt_ownership_own promotes borrowed refs\n\n");
+}
+
 int main(void)
 {
     printf("\033[1;34m=== Running syli.h API Tests ===\033[0m\n\n");
@@ -608,6 +648,7 @@ int main(void)
     test_rt_object_raw_copy();
     test_rt_gc_cycle();
     test_rt_object_notify_mutation();
+    test_rt_ownership_own();
 
     printf("\033[1;32m=== All syli.h API Tests Passed! ===\033[0m\n\n");
     return 0;

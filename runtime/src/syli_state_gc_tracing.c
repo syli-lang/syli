@@ -2,19 +2,10 @@
 #include <stdio.h>
 
 #include "syli/gc_helpers.h"
+#include "syli/gc_roots.h"
 #include "syli/object.h"
 
 #include "syli/syli_state.h"
-
-static void gc_worklist_push(obj_ptr obj_p)
-{
-    Object* child = syli_object_of_obj_ptr(obj_p);
-    if (syli_object_has_flags(child, Meta_Flags_Tracing)) {
-        return; // already queued
-    }
-    syli_object_set_flags(child, Meta_Flags_Tracing);
-    gc_vector_push_back(&syli_state.tracing_worklist, obj_p);
-}
 
 // Non-recursive DFS marking (precise - uses type descriptors)
 static void gc_one_step_tracing(void)
@@ -58,7 +49,7 @@ static void gc_one_step_tracing(void)
                 || !syli_ownership_is_own_ref((obj_ptr)field_value)) {
                 continue;
             }
-            gc_worklist_push((obj_ptr)field_value);
+            gc_tracing_worklist_push((obj_ptr)field_value);
         }
         return;
     }
@@ -78,7 +69,7 @@ static void gc_one_step_tracing(void)
                 || !syli_ownership_is_own_ref((obj_ptr)field_value)) {
                 continue;
             }
-            gc_worklist_push((obj_ptr)field_value);
+            gc_tracing_worklist_push((obj_ptr)field_value);
         }
         return;
     }
@@ -93,7 +84,7 @@ static void gc_one_step_tracing(void)
                 || !syli_ownership_is_own_ref((obj_ptr)field_value)) {
                 continue;
             }
-            gc_worklist_push((obj_ptr)field_value);
+            gc_tracing_worklist_push((obj_ptr)field_value);
         }
         return;
     }
@@ -125,7 +116,7 @@ static void gc_one_step_prepare_tracing_mutations()
                 || !syli_ownership_is_own_ref((obj_ptr)field_value)) {
                 continue;
             }
-            gc_worklist_push((obj_ptr)field_value);
+            gc_tracing_worklist_push((obj_ptr)field_value);
         }
         return;
     }
@@ -143,7 +134,7 @@ static void gc_one_step_prepare_tracing_mutations()
                 || !syli_ownership_is_own_ref((obj_ptr)field_value)) {
                 continue;
             }
-            gc_worklist_push((obj_ptr)field_value);
+            gc_tracing_worklist_push((obj_ptr)field_value);
         }
         return;
     }
@@ -158,38 +149,9 @@ static void gc_one_step_prepare_tracing_mutations()
                 || !syli_ownership_is_own_ref((obj_ptr)field_value)) {
                 continue;
             }
-            gc_worklist_push((obj_ptr)field_value);
+            gc_tracing_worklist_push((obj_ptr)field_value);
         }
         return;
-    }
-}
-
-// TODO: this function will changed/updated since the frame_stack will
-// change with the llvm gc_root support.
-void push_next_frame_stack_roots()
-{
-
-    if (syli_state.current_frame_stack_index
-        >= syli_state.snapshot_frame_stack_index) {
-        return; // No more frames to process
-    }
-
-    assert(syli_state.stack_frame_roots.top > 0);
-    Frame* current_frame = syli_state.stack_frame_roots
-                               .frames[syli_state.current_frame_stack_index];
-    syli_state.current_frame_stack_index++;
-    for (uint32_t i = 0; i < current_frame->root_count; i++) {
-        obj_ptr obj_ptr = *current_frame->roots[i];
-        if (!syli_ownership_is_own_ref(obj_ptr))
-            continue;
-        Object* root_obj = syli_object_of_obj_ptr(obj_ptr);
-        if (root_obj) {
-            // we are not expecting acyclic roots objects here
-            // with the current shadow stack design
-            assert(syli_object_has_pointers(as_object(root_obj)) != 0);
-
-            gc_worklist_push(obj_ptr);
-        }
     }
 }
 
@@ -209,14 +171,12 @@ void syli_state_gc_tracing()
                 syli_state.tracing_state = Tracing;
                 gc_next_marking_generation();
 
-                if (syli_state.stack_frame_roots.top > 0) {
+                syli_rt_collect_stack_roots();
 
-                    syli_state.current_frame_stack_index = 0;
-                    syli_state.snapshot_frame_stack_index
-                        = syli_state.stack_frame_roots.top;
-                    push_next_frame_stack_roots();
-
-                } else {
+                if (vector_size_obj_ptr(&syli_state.tracing_worklist) == 0
+                    && vector_size_obj_ptr(
+                           &syli_state.tracing_mutations_worklist)
+                        == 0) {
                     syli_state.tracing_state = Checking_Suspect_Lost_Cycle;
                     syli_state.suspect_objects_notifications = 0;
                 }
@@ -228,8 +188,6 @@ void syli_state_gc_tracing()
         case Tracing:
             gc_one_step_tracing();
             syli_state.tracing_steps++;
-
-            push_next_frame_stack_roots();
 
             if (vector_size_obj_ptr(&syli_state.tracing_worklist) == 0
                 && vector_size_obj_ptr(&syli_state.tracing_mutations_worklist)
@@ -247,14 +205,19 @@ void syli_state_gc_tracing()
 
             break;
         case Mutation_Prepare:
+            if (vector_size_obj_ptr(&syli_state.tracing_mutations_worklist)
+                == 0) {
+                // No mutations left: resume tracing or finish the cycle.
+                if (vector_size_obj_ptr(&syli_state.tracing_worklist) > 0) {
+                    syli_state.tracing_state = Tracing;
+                } else {
+                    syli_state.tracing_state = Checking_Suspect_Lost_Cycle;
+                    syli_state.suspect_objects_notifications = 0;
+                }
+                break;
+            }
             gc_one_step_prepare_tracing_mutations();
             syli_state.mutation_steps++;
-
-            if (vector_size_obj_ptr(&syli_state.tracing_worklist) > 0
-                && vector_size_obj_ptr(&syli_state.tracing_mutations_worklist)
-                    == 0) {
-                syli_state.tracing_state = Tracing;
-            }
             break;
 
         case Checking_Suspect_Lost_Cycle:
@@ -265,7 +228,6 @@ void syli_state_gc_tracing()
             }
 
             if (vector_size_Suspected(&syli_state.suspect_lost_cycle) > 0) {
-
                 Suspected* suspected_obj = (Suspected*)vector_at_Suspected(
                     &syli_state.suspect_lost_cycle,
                     syli_state.current_suspected_check_index);
@@ -307,6 +269,9 @@ void syli_state_gc_tracing()
                     syli_state.current_suspected_check_index = 0;
                     syli_state.tracing_state                 = Tracing_Idle;
                 }
+            } else {
+                // No suspects left to check
+                syli_state.tracing_state = Tracing_Idle;
             }
 
             break;

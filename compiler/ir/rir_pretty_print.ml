@@ -12,7 +12,7 @@ let rec string_of_ir_type = function
   | RR_Bool -> "bool"
   | RR_Float -> "f32"
   | RR_Double -> "f64"
-  | RR_Obj_Ptr -> "obj_ptr"
+  | RR_Obj_Ptr _ -> "obj_ptr"
   | RR_FnPtr -> "fn_ptr"
   | RR_Char -> "char"
   | RR_Str -> "str"

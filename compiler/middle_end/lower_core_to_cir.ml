@@ -830,7 +830,13 @@ let ffi_of_signature (type_defs : C.ty_decl StringMap.t) (s : C.signature_item)
   | C.CSig_Fun { name; params; ret_ty; external_fn = Some ext } ->
       let params, ret_ty =
         match (params, ret_ty.ty_desc) with
-        | [], CTy_Arrow (fn_params, fn_ret) -> (fn_params, fn_ret)
+        | [], CTy_Arrow (fn_params, fn_ret) ->
+            let fn_params =
+              List.filter
+                (fun (t : C.ty) -> t.ty_desc <> C.CTy_Constant C.CTy_Unit)
+                fn_params
+            in
+            (fn_params, fn_ret)
         | _ -> (params, ret_ty)
       in
       Some
@@ -959,7 +965,12 @@ let lower_program (prog : C.program_core) : I.module_cir =
         | C.CSig_Fun { name; params; ret_ty; external_fn = Some _ } ->
             let arity =
               match (params, ret_ty.ty_desc) with
-              | [], CTy_Arrow (fn_params, _) -> List.length fn_params
+              | [], CTy_Arrow (fn_params, _) ->
+                  List.length
+                    (List.filter
+                       (fun (t : C.ty) ->
+                         t.ty_desc <> C.CTy_Constant C.CTy_Unit)
+                       fn_params)
               | _ -> List.length params
             in
             StringMap.add name.fullname arity acc

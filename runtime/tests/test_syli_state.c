@@ -1,3 +1,4 @@
+#define _DEFAULT_SOURCE
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -5,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "syli/config.h"
 #include "syli/gc_helpers.h"
 #include "syli/object.h"
 #include "syli/stack_frame.h"
@@ -56,9 +56,6 @@ void test_state_init()
     assert(syli_state.total_objects_released == 0);
     assert(syli_state.total_objects_memory_freed == 0);
 
-    // Check frame stack indices
-    assert(syli_state.current_frame_stack_index == 0);
-    assert(syli_state.snapshot_frame_stack_index == 0);
     assert(syli_state.generation_tracing == 0);
 
     // Check stack frame roots initialized
@@ -343,6 +340,42 @@ void test_state_worklist_operations()
     printf("✓ GC worklist operations work correctly\n\n");
 }
 
+void test_state_env_suspect_threshold()
+{
+    printf("Test 9: SYLI_GC_SUSPECT_THRESHOLD env override\n");
+
+    unsetenv("SYLI_GC_SUSPECT_THRESHOLD");
+    syli_state_init();
+    assert(syli_state.THRESHOLD_SUSPECTS_LOST_CYCLE == 1000);
+    syli_state_destroy();
+
+    setenv("SYLI_GC_SUSPECT_THRESHOLD", "3", 1);
+    syli_state_init();
+    assert(syli_state.THRESHOLD_SUSPECTS_LOST_CYCLE == 3);
+    syli_state_destroy();
+
+    setenv("SYLI_GC_SUSPECT_THRESHOLD", "0", 1);
+    syli_state_init();
+    assert(syli_state.THRESHOLD_SUSPECTS_LOST_CYCLE == 0);
+    syli_state_destroy();
+
+    setenv("SYLI_GC_SUSPECT_THRESHOLD", "not-a-number", 1);
+    syli_state_init();
+    assert(syli_state.THRESHOLD_SUSPECTS_LOST_CYCLE == 1000);
+    syli_state_destroy();
+
+    setenv("SYLI_GC_RELEASING_THRESHOLD", "7", 1);
+    unsetenv("SYLI_GC_SUSPECT_THRESHOLD");
+    syli_state_init();
+    assert(syli_state.THRESHOLD_RELEASING_BUCKET == 7);
+    assert(syli_state.THRESHOLD_SUSPECTS_LOST_CYCLE == 1000);
+    syli_state_destroy();
+
+    unsetenv("SYLI_GC_SUSPECT_THRESHOLD");
+    unsetenv("SYLI_GC_RELEASING_THRESHOLD");
+    printf("✓ SYLI_GC_SUSPECT_THRESHOLD env override works\n\n");
+}
+
 int main()
 {
     printf("\033[1;34m=== Running syli_state Tests ===\033[0m\n\n");
@@ -355,6 +388,7 @@ int main()
     test_state_frame_scope_with_empty_roots();
     test_state_gc_cycle();
     test_state_worklist_operations();
+    test_state_env_suspect_threshold();
 
     printf("\033[1;32m=== All syli_state Tests Passed! ===\033[0m\n\n");
     return 0;

@@ -8,5 +8,6 @@ void syli_print_f64(double value);
 typedef struct { const char* ptr; int64_t len; } SyliStr;
 void syli_print_str(SyliStr s);
 void syli_print_char(char value);
+void syli_print_gc_state(void);
 
 #endif // IMMEDIATE_H

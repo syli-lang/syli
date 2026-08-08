@@ -9,7 +9,7 @@ let fresh_id () =
 let mk_ty (ir : ir_type) : ty = { id = fresh_id (); ty = ir }
 let void_ty = mk_ty RR_Void
 let i32_ty = mk_ty RR_I32
-let i8ptr_ty = mk_ty RR_Obj_Ptr
+let i8ptr_ty = mk_ty (RR_Obj_Ptr Syli_ir.Oir.Acyclic)
 
 let mk_var (ty : ty) (name : string) : var =
   { id = fresh_id (); fullname = name; ty }
