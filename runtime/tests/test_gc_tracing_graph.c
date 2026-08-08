@@ -22,6 +22,11 @@ static obj_ptr make_ref_object(size_t words, CyclicFlag cyclic)
     return obj;
 }
 
+static bool is_marked(obj_ptr p)
+{
+    return gc_is_object_mark_tagged(syli_object_of_obj_ptr(p));
+}
+
 static void run_tracing(obj_ptr root)
 {
     gc_add_suspect(root);
@@ -50,19 +55,16 @@ static void test_linear_chain_marking(void)
     syli_object_data(syli_object_of_obj_ptr(n2))[0]   = (uint64_t)n3;
     syli_object_data(syli_object_of_obj_ptr(n3))[0]   = (uint64_t)n4;
 
-    obj_ptr* roots[] = { &root };
-    Frame frame      = { .root_count = 1, .roots = roots };
-    syli_state_push_frame_scope(&frame);
+    gc_tracing_worklist_push(root);
 
     run_tracing(root);
 
-    assert(gc_is_object_mark_tagged(root));
-    assert(gc_is_object_mark_tagged(n1));
-    assert(gc_is_object_mark_tagged(n2));
-    assert(gc_is_object_mark_tagged(n3));
-    assert(gc_is_object_mark_tagged(n4));
+    assert(is_marked(root));
+    assert(is_marked(n1));
+    assert(is_marked(n2));
+    assert(is_marked(n3));
+    assert(is_marked(n4));
 
-    syli_state_pop_frame_scope();
     syli_free_ptr(root);
     syli_free_ptr(n1);
     syli_free_ptr(n2);
@@ -101,21 +103,18 @@ static void test_binary_tree_marking(void)
     syli_object_data(syli_object_of_obj_ptr(n2))[0]   = (uint64_t)n5;
     syli_object_data(syli_object_of_obj_ptr(n2))[1]   = (uint64_t)n6;
 
-    obj_ptr* roots[] = { &root };
-    Frame frame      = { .root_count = 1, .roots = roots };
-    syli_state_push_frame_scope(&frame);
+    gc_tracing_worklist_push(root);
 
     run_tracing(root);
 
-    assert(gc_is_object_mark_tagged(root));
-    assert(gc_is_object_mark_tagged(n1));
-    assert(gc_is_object_mark_tagged(n2));
-    assert(gc_is_object_mark_tagged(n3));
-    assert(gc_is_object_mark_tagged(n4));
-    assert(gc_is_object_mark_tagged(n5));
-    assert(gc_is_object_mark_tagged(n6));
+    assert(is_marked(root));
+    assert(is_marked(n1));
+    assert(is_marked(n2));
+    assert(is_marked(n3));
+    assert(is_marked(n4));
+    assert(is_marked(n5));
+    assert(is_marked(n6));
 
-    syli_state_pop_frame_scope();
     syli_free_ptr(root);
     syli_free_ptr(n1);
     syli_free_ptr(n2);
@@ -156,18 +155,15 @@ static void test_diamond_graph_marking(void)
     syli_object_data(syli_object_of_obj_ptr(n1))[0]   = (uint64_t)shared;
     syli_object_data(syli_object_of_obj_ptr(n2))[0]   = (uint64_t)shared;
 
-    obj_ptr* roots[] = { &root };
-    Frame frame      = { .root_count = 1, .roots = roots };
-    syli_state_push_frame_scope(&frame);
+    gc_tracing_worklist_push(root);
 
     run_tracing(root);
 
-    assert(gc_is_object_mark_tagged(root));
-    assert(gc_is_object_mark_tagged(n1));
-    assert(gc_is_object_mark_tagged(n2));
-    assert(gc_is_object_mark_tagged(shared));
+    assert(is_marked(root));
+    assert(is_marked(n1));
+    assert(is_marked(n2));
+    assert(is_marked(shared));
 
-    syli_state_pop_frame_scope();
     syli_free_ptr(root);
     syli_free_ptr(n1);
     syli_free_ptr(n2);
@@ -197,9 +193,8 @@ static void test_multiple_roots_shared_graph(void)
     syli_object_data(syli_object_of_obj_ptr(n1))[0]    = (uint64_t)shared;
     syli_object_data(syli_object_of_obj_ptr(n2))[0]    = (uint64_t)shared;
 
-    obj_ptr* roots[] = { &root1, &root2 };
-    Frame frame      = { .root_count = 2, .roots = roots };
-    syli_state_push_frame_scope(&frame);
+    gc_tracing_worklist_push(root1);
+    gc_tracing_worklist_push(root2);
 
     // Add both roots as suspects
     gc_add_suspect(root1);
@@ -210,13 +205,12 @@ static void test_multiple_roots_shared_graph(void)
     syli_state.tracing_state                 = Tracing_Idle;
     syli_state_gc_tracing();
 
-    assert(gc_is_object_mark_tagged(root1));
-    assert(gc_is_object_mark_tagged(root2));
-    assert(gc_is_object_mark_tagged(n1));
-    assert(gc_is_object_mark_tagged(n2));
-    assert(gc_is_object_mark_tagged(shared));
+    assert(is_marked(root1));
+    assert(is_marked(root2));
+    assert(is_marked(n1));
+    assert(is_marked(n2));
+    assert(is_marked(shared));
 
-    syli_state_pop_frame_scope();
     syli_free_ptr(root1);
     syli_free_ptr(root2);
     syli_free_ptr(n1);
@@ -248,22 +242,19 @@ static void test_disconnected_components(void)
     syli_object_data(syli_object_of_obj_ptr(isolated1))[0]
         = (uint64_t)isolated2;
 
-    obj_ptr* roots[] = { &root };
-    Frame frame      = { .root_count = 1, .roots = roots };
-    syli_state_push_frame_scope(&frame);
+    gc_tracing_worklist_push(root);
 
     run_tracing(root);
 
     // Reachable nodes should be marked
-    assert(gc_is_object_mark_tagged(root));
-    assert(gc_is_object_mark_tagged(n1));
-    assert(gc_is_object_mark_tagged(n2));
+    assert(is_marked(root));
+    assert(is_marked(n1));
+    assert(is_marked(n2));
 
     // Unreachable nodes should NOT be marked
-    assert(!gc_is_object_mark_tagged(isolated1));
-    assert(!gc_is_object_mark_tagged(isolated2));
+    assert(!is_marked(isolated1));
+    assert(!is_marked(isolated2));
 
-    syli_state_pop_frame_scope();
     syli_free_ptr(root);
     syli_free_ptr(n1);
     syli_free_ptr(n2);
@@ -275,7 +266,7 @@ static void test_disconnected_components(void)
 
 int main(void)
 {
-    printf("\033[1;34m=== Graph Marking Tests ===\033[0m\n\n");
+    printf("\033[1;34m=== Graph Tracing Tests ===\033[0m\n\n");
 
     test_linear_chain_marking();
     test_binary_tree_marking();
@@ -283,7 +274,7 @@ int main(void)
     test_multiple_roots_shared_graph();
     test_disconnected_components();
 
-    printf("\033[1;32m=== All 5 graph marking tests passed! ===\033[0m\n");
+    printf("\033[1;32m=== All 5 graph tracing tests passed! ===\033[0m\n");
 
     return 0;
 }

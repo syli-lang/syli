@@ -117,8 +117,8 @@ void syli_build_stackmap_record_entry(const unsigned char* start)
         headers->num_records, sizeof(SyliStackMap_Record_Entry));
 
     if (syli_state.stackmap_record_entry == NULL) {
-        syli_state.stackmap_record_entry_len = 0;
-        return;
+        fprintf(stderr, "Fails to allocate memory for record entry");
+        exit(1);
     }
 
     uint64_t index                      = 0;

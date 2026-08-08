@@ -53,7 +53,6 @@ add_library(syliruntime STATIC
     src/syli_state_gc_releasing.c
     src/syli_state_gc_tracing.c
     src/syli_state_gc_roots.c
-    src/stack_frame.c
     src/main.c
     src/syli_primitives.c
     src/syli.c
@@ -186,9 +185,6 @@ endif()
 
 # Test executables
 
-add_executable(test_stack_frame tests/test_stack_frame.c)
-target_link_libraries(test_stack_frame PRIVATE syliruntime)
-
 add_executable(test_header_object tests/test_header_object.c)
 target_include_directories(test_header_object PRIVATE
     ${CMAKE_SOURCE_DIR}
@@ -216,12 +212,12 @@ target_include_directories(test_gc_roots PRIVATE
 )
 target_link_libraries(test_gc_roots PRIVATE syliruntime)
 
-add_executable(test_graph_marking tests/test_gc_tracing_graph.c)
-target_include_directories(test_graph_marking PRIVATE
+add_executable(test_gc_tracing_graph tests/test_gc_tracing_graph.c)
+target_include_directories(test_gc_tracing_graph PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/include
 )
-target_link_libraries(test_graph_marking PRIVATE syliruntime)
+target_link_libraries(test_gc_tracing_graph PRIVATE syliruntime)
 
 add_executable(test_chunk_vector tests/test_chunk_vector.c)
 target_include_directories(test_chunk_vector PRIVATE
@@ -272,10 +268,9 @@ add_custom_target(build-tests
         test_header_object
         test_gc
         test_gc_roots
-        test_graph_marking
+        test_gc_tracing_graph
         test_chunk_vector
         test_object
-        test_stack_frame
         test_syli_state
         test_syli_api
 )
@@ -300,7 +295,7 @@ add_custom_target(run-tests
     COMMAND $<TARGET_FILE:test_chunk_vector>
     COMMAND $<TARGET_FILE:test_object>
     COMMAND $<TARGET_FILE:test_header_object>
-    COMMAND $<TARGET_FILE:test_stack_frame>
+    COMMAND $<TARGET_FILE:test_gc_tracing_graph>
     COMMAND $<TARGET_FILE:test_syli_state>
     COMMAND $<TARGET_FILE:test_syli_api>
     DEPENDS build-tests

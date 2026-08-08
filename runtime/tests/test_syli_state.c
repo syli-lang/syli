@@ -8,7 +8,6 @@
 
 #include "syli/gc_helpers.h"
 #include "syli/object.h"
-#include "syli/stack_frame.h"
 #include "syli/syli_state.h"
 
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
@@ -58,11 +57,6 @@ void test_state_init()
 
     assert(syli_state.generation_tracing == 0);
 
-    // Check stack frame roots initialized
-    assert(syli_state.stack_frame_roots.frames != NULL);
-    assert(syli_state.stack_frame_roots.top == 0);
-    assert(syli_state.stack_frame_roots.capacity == 16);
-
     // Check tracing state
     assert(syli_state.tracing_current_bit_mark == 0);
     assert(syli_state.tracing_generations == 0);
@@ -74,7 +68,6 @@ void test_state_init()
     // Check suspect notifications and check indices
     assert(syli_state.suspect_objects_notifications == 0);
     assert(syli_state.current_suspected_check_index == 0);
-    assert(syli_state.snapshot_check_index == 0);
 
     syli_state_destroy();
     printf("✓ syli_state_init() initializes all fields correctly\n\n");
@@ -87,7 +80,7 @@ void test_state_destroy()
     syli_state_init();
 
     // Verify state is usable before destroy
-    assert(syli_state.stack_frame_roots.frames != NULL);
+    assert(syli_state.tracing_worklist.chunks != NULL);
 
     syli_state_destroy();
 
@@ -112,11 +105,6 @@ void test_state_destroy()
     assert(syli_state.suspect_lost_cycle.chunk_count == 0);
     assert(syli_state.suspect_lost_cycle.total_elements == 0);
 
-    // Stack frame roots should be destroyed
-    assert(syli_state.stack_frame_roots.frames == NULL);
-    assert(syli_state.stack_frame_roots.top == 0);
-    assert(syli_state.stack_frame_roots.capacity == 0);
-
     printf("✓ syli_state_destroy() cleans up all resources\n\n");
 }
 
@@ -126,20 +114,18 @@ void test_state_init_destroy_cycle()
 
     // Cycle 1
     syli_state_init();
-    assert(syli_state.stack_frame_roots.frames != NULL);
+    assert(syli_state.tracing_worklist.chunks != NULL);
     syli_state_destroy();
-    assert(syli_state.stack_frame_roots.frames == NULL);
+    assert(syli_state.tracing_worklist.chunks == NULL);
 
     // Cycle 2
     syli_state_init();
-    assert(syli_state.stack_frame_roots.frames != NULL);
     assert(syli_state.tracing_worklist.chunks != NULL);
     syli_state_destroy();
-    assert(syli_state.stack_frame_roots.frames == NULL);
+    assert(syli_state.tracing_worklist.chunks == NULL);
 
     // Cycle 3
     syli_state_init();
-    assert(syli_state.stack_frame_roots.capacity == 16);
     assert(vector_empty_obj_ptr(&syli_state.tracing_worklist) == true);
     assert(vector_empty_obj_ptr(&syli_state.releasing_worklist) == true);
     syli_state_destroy();
@@ -147,111 +133,9 @@ void test_state_init_destroy_cycle()
     printf("✓ Multiple init/destroy cycles work correctly\n\n");
 }
 
-void test_state_push_pop_frame_scope()
-{
-    printf("Test 4: syli_state_push/pop_frame_scope\n");
-
-    syli_state_init();
-
-    // Verify initial state
-    assert(syli_state.stack_frame_roots.top == 0);
-    assert(syli_state.snapshot_check_index == 0);
-
-    // Create obj_ptr roots
-    obj_ptr obj1      = (obj_ptr)0x1000;
-    obj_ptr* roots1[] = { &obj1 };
-    Frame frame1      = { .root_count = 1, .roots = roots1 };
-
-    // Push first frame scope
-    syli_state_push_frame_scope(&frame1);
-    assert(syli_state.stack_frame_roots.top == 1);
-    assert(syli_state.stack_frame_roots.frames[0] == &frame1);
-
-    // Push second frame scope
-    obj_ptr obj2      = (obj_ptr)0x2000;
-    obj_ptr* roots2[] = { &obj2 };
-    Frame frame2      = { .root_count = 1, .roots = roots2 };
-
-    syli_state_push_frame_scope(&frame2);
-    assert(syli_state.stack_frame_roots.top == 2);
-    assert(syli_state.stack_frame_roots.frames[1] == &frame2);
-
-    // Pop second frame scope
-    syli_state_pop_frame_scope();
-    assert(syli_state.stack_frame_roots.top == 1);
-
-    // Pop first frame scope
-    syli_state_pop_frame_scope();
-    assert(syli_state.stack_frame_roots.top == 0);
-
-    printf("✓ Basic push/pop works correctly\n");
-
-    // Test snapshot_check_index update on pop
-    syli_state.snapshot_check_index = 5;
-    assert(syli_state.snapshot_check_index == 5);
-
-    syli_state_push_frame_scope(&frame1);
-    assert(syli_state.stack_frame_roots.top == 1);
-
-    syli_state_pop_frame_scope();
-    // After pop, top is 0 which is < 5, so snapshot should update to 0
-    assert(syli_state.snapshot_check_index == 0);
-
-    printf("✓ Snapshot check index update works correctly\n");
-
-    syli_state_destroy();
-    printf("✓ Frame scope push/pop operations work\n\n");
-}
-
-void test_state_push_multiple_roots_scope()
-{
-    printf("Test 5: Frame scope with multiple roots\n");
-
-    syli_state_init();
-
-    obj_ptr obj1     = (obj_ptr)0x1000;
-    obj_ptr obj2     = (obj_ptr)0x2000;
-    obj_ptr obj3     = (obj_ptr)0x3000;
-    obj_ptr* roots[] = { &obj1, &obj2, &obj3 };
-    Frame frame      = { .root_count = 3, .roots = roots };
-
-    syli_state_push_frame_scope(&frame);
-    assert(syli_state.stack_frame_roots.top == 1);
-
-    // Verify the frame's roots are accessible
-    assert(*frame.roots[0] == obj1);
-    assert(*frame.roots[1] == obj2);
-    assert(*frame.roots[2] == obj3);
-
-    syli_state_pop_frame_scope();
-    assert(syli_state.stack_frame_roots.top == 0);
-
-    syli_state_destroy();
-    printf("✓ Frame scope with multiple roots works\n\n");
-}
-
-void test_state_frame_scope_with_empty_roots()
-{
-    printf("Test 6: Frame scope with empty roots (root_count == 0)\n");
-
-    syli_state_init();
-
-    // A frame with root_count == 0 and roots == NULL
-    Frame frame = { .root_count = 0, .roots = NULL };
-
-    syli_state_push_frame_scope(&frame);
-    assert(syli_state.stack_frame_roots.top == 1);
-
-    syli_state_pop_frame_scope();
-    assert(syli_state.stack_frame_roots.top == 0);
-
-    syli_state_destroy();
-    printf("✓ Frame scope with empty roots works\n\n");
-}
-
 void test_state_gc_cycle()
 {
-    printf("Test 7: syli_state_gc_cycle()\n");
+    printf("Test 4: syli_state_gc_cycle()\n");
 
     syli_state_init();
 
@@ -274,7 +158,7 @@ void test_state_gc_cycle()
 
 void test_state_worklist_operations()
 {
-    printf("Test 8: GC worklist operations\n");
+    printf("Test 5: GC worklist operations\n");
 
     syli_state_init();
 
@@ -342,7 +226,7 @@ void test_state_worklist_operations()
 
 void test_state_env_suspect_threshold()
 {
-    printf("Test 9: SYLI_GC_SUSPECT_THRESHOLD env override\n");
+    printf("Test 6: SYLI_GC_SUSPECT_THRESHOLD env override\n");
 
     unsetenv("SYLI_GC_SUSPECT_THRESHOLD");
     syli_state_init();
@@ -383,9 +267,6 @@ int main()
     test_state_init();
     test_state_destroy();
     test_state_init_destroy_cycle();
-    test_state_push_pop_frame_scope();
-    test_state_push_multiple_roots_scope();
-    test_state_frame_scope_with_empty_roots();
     test_state_gc_cycle();
     test_state_worklist_operations();
     test_state_env_suspect_threshold();

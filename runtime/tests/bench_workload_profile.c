@@ -73,28 +73,21 @@ static void run_profile(
 
         obj_ptr* root_slots
             = (obj_ptr*)malloc(long_lived_count * sizeof(obj_ptr));
-        obj_ptr** roots
-            = (obj_ptr**)malloc(long_lived_count * sizeof(obj_ptr*));
         obj_ptr* children
             = (obj_ptr*)malloc(long_lived_count * sizeof(obj_ptr));
 
-        /* Long-lived cyclic pairs in frame roots */
         for (size_t i = 0; i < long_lived_count; i++) {
             root_slots[i] = make_ref_object(1, Cyclic);
             children[i]   = make_ref_object(1, Cyclic);
             syli_object_data(syli_object_of_obj_ptr(root_slots[i]))[0]
                 = (uint64_t)children[i];
-            roots[i] = &root_slots[i];
+            gc_tracing_worklist_push(root_slots[i]);
         }
-        Frame frame
-            = { .root_count = (uint32_t)long_lived_count, .roots = roots };
-        syli_state_push_frame_scope(&frame);
 
         /* Short-lived leaf objects pushed to releasing waitlist */
         for (size_t i = 0; i < short_lived_count; i++) {
             obj_ptr obj = make_ref_object(0, Acyclic);
-            syli_rt_ownership_decr(obj);
-            gc_vector_push_back(&syli_state.releasing_waitlist, obj);
+            syli_rt_ownership_release(obj);
         }
 
         /* Mark long-lived roots as cycle suspects */
@@ -124,14 +117,11 @@ static void run_profile(
             total_cycles++;
         }
 
-        syli_state_pop_frame_scope();
-
         for (size_t i = 0; i < long_lived_count; i++) {
             syli_free_ptr(root_slots[i]);
             syli_free_ptr(children[i]);
         }
         free(children);
-        free(roots);
         free(root_slots);
         syli_state_destroy();
     }

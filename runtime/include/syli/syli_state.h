@@ -8,7 +8,6 @@
 #include "chunk_vector.h"
 #include "gc_roots.h"
 #include "object.h"
-#include "stack_frame.h"
 #include "env.h"
 
 #define BUDGET_BATCH_SIZE 1000
@@ -71,9 +70,6 @@ typedef struct Syli_state {
 
     size_t generation_tracing;
 
-    // Stack frame for root management
-    StackFrame stack_frame_roots;
-
     uint64_t tracing_current_bit_mark;
     size_t tracing_generations;
 
@@ -84,7 +80,6 @@ typedef struct Syli_state {
     size_t suspect_objects_notifications;
 
     size_t current_suspected_check_index;
-    size_t snapshot_check_index;
 
     // LLVM pre-computed records
     SyliStackMap_Record_Entry* stackmap_record_entry;
@@ -119,14 +114,6 @@ void syli_state_destroy();
 
 // ARC allocations
 Object* syli_state_alloc_object(object_header_t header, size_t length);
-
-// ========================
-// GC root management
-// ========================
-
-// Stack frame roots
-void syli_state_push_frame_scope(Frame* frame);
-void syli_state_pop_frame_scope(void);
 
 // ========================
 // Garbage collection
