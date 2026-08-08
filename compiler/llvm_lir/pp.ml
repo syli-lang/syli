@@ -52,9 +52,10 @@ let instruction_to_string indent = function
           let idxs =
             String.concat ", " (List.map string_of_typed_operand indices)
           in
-          Printf.sprintf "%s%sgetelementptr %s, ptr %s, %s" p lhs
+          Printf.sprintf "%s%sgetelementptr %s, %s, %s" p lhs
             (string_of_lltype result_ty)
-            (string_of_operand base) idxs
+            (string_of_typed_operand base)
+            idxs
       | LV_InsertValue { agg; value; index; _ } ->
           Printf.sprintf "%s%sinsertvalue %s, %s, %d" p lhs
             (string_of_typed_operand agg)
@@ -100,9 +101,12 @@ let func_to_string (f : func) =
          (fun (ty, name) -> Printf.sprintf "%s %%%s" (string_of_lltype ty) name)
          f.params)
   in
-  Printf.bprintf buf "define %s @%s(%s) {\n"
+  let attrs_str =
+    match f.attributes with [] -> "" | attrs -> " " ^ String.concat " " attrs
+  in
+  Printf.bprintf buf "define %s @%s(%s)%s {\n"
     (string_of_lltype f.ret_type)
-    f.name params_str;
+    f.name params_str attrs_str;
   List.iter
     (fun block -> Printf.bprintf buf "%s" (block_to_string block))
     f.blocks;

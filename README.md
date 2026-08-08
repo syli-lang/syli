@@ -4,7 +4,7 @@
 
 ## Overview
 
-Syli is a general-purpose programming language with a functional core, statically typed and Pythonic-ML-like syntax. The runtime is a based on refcount memory management system with [ownership](doc/ownership.md) tag pointers (release happens on only tagged pointers). The closure concept is based on a closure call graph that uses **Ball-Larus** algorithm in order to allow polymorphism with monomorphization.
+Syli is a general-purpose programming language with a functional core, statically typed and Pythonic-ML-like syntax. The runtime is a based on refcount memory management system with [**ownership tag pointers**](doc/ownership.md) (release happens on only tagged pointers). The closure concept is based on a closure call graph that uses **Ball-Larus** algorithm to annotate the closure nodes in order to allow polymorphism with monomorphization.
 
 The goal of the language is to have expressivity, low latency and high performance, It is compiled into native code.
 
@@ -92,41 +92,6 @@ fn main () = syli_print_i64(stress 1000 0)
 Running the bechmarks, make sure `hyperfine` is installed.
 ```
 $ ./bench/run.sh 
-Building tak...
-Building queens...
-Building clos...
-Building clos4...
-
-=== tak ===
-Benchmark 1: ./tak.exe
-  Time (mean ± σ):     387.9 ms ±  13.1 ms    [User: 386.0 ms, System: 1.4 ms]
-  Range (min … max):   368.6 ms … 409.6 ms    7 runs
- 
-
-=== queens ===
-Benchmark 1: ./queens.exe
-  Time (mean ± σ):     962.4 µs ± 187.7 µs    [User: 275.5 µs, System: 549.3 µs]
-  Range (min … max):   671.4 µs … 1818.7 µs    2132 runs
- 
-
-=== clos ===
-Benchmark 1: ./clos.exe
-  Time (mean ± σ):       1.5 ms ±   0.2 ms    [User: 0.6 ms, System: 0.7 ms]
-  Range (min … max):     1.1 ms …   2.4 ms    1796 runs
- 
-
-=== clos4 ===
-Benchmark 1: ./clos4.exe
-  Time (mean ± σ):      1.052 s ±  0.021 s    [User: 1.051 s, System: 0.001 s]
-  Range (min … max):    1.026 s …  1.082 s    5 runs
- 
-
-=== Memory usage peak ===
-  tak      1800 KB
-  queens   1936 KB
-  clos     1740 KB
-  clos4    1788 KB
-
 ```
 
 ## Roadmap

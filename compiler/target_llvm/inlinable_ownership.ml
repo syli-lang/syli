@@ -9,7 +9,7 @@ let global (n : string) (ty : lltype) : operand = LV_Global (n, ty)
 let local name ty = LV_Local (name, ty)
 let assign dst rhs = LV_Assign (dst, rhs)
 let i64_ty = LV_I64
-let ptr_ty = LV_Ptr
+let ptr_ty = LV_Ptr_as 1
 
 (*
   define ptr @syli_inlinable_ownership_untag(ptr %p) {
@@ -44,6 +44,7 @@ let mk_untag_fn () : func =
         };
       ];
     linkage = Private;
+    attributes = [];
   }
 
 (*
@@ -79,6 +80,7 @@ let mk_borrow_fn () : func =
         };
       ];
     linkage = Private;
+    attributes = [];
   }
 
 (*
@@ -138,6 +140,7 @@ let mk_release_fn () : func =
         { label = "done"; instructions = []; terminator = LV_Ret None };
       ];
     linkage = Private;
+    attributes = [];
   }
 
 (*
@@ -147,9 +150,9 @@ let mk_release_fn () : func =
     %is_borrow = icmp eq i64 %t, 0
     br i1 %is_borrow, label %promote, label %done
   promote:
-    call void @syli_rt_ownership_incr(ptr %p)
     %r = or i64 %i, 1
     %rp = inttoptr i64 %r to ptr
+    call void @syli_rt_ownership_incr(ptr %rp)
     ret ptr %rp
   done:
     ret ptr %p
@@ -186,13 +189,6 @@ let mk_own_fn () : func =
           label = "promote";
           instructions =
             [
-              assign (local "_inc" LV_Void)
-                (LV_Call
-                   {
-                     fn = global "syli_rt_ownership_incr" incr_fn_ty;
-                     args = [ local "p" ptr_ty ];
-                     ret_ty = LV_Void;
-                   });
               assign (local "r" i64_ty)
                 (LV_IBinOp
                    ( LV_IBitOr,
@@ -200,6 +196,13 @@ let mk_own_fn () : func =
                      LV_Constant (LV_Integer 1L, i64_ty) ));
               assign (local "rp" ptr_ty)
                 (LV_Cast (LV_IntToPtr, local "r" i64_ty, ptr_ty));
+              assign (local "_inc" LV_Void)
+                (LV_Call
+                   {
+                     fn = global "syli_rt_ownership_incr" incr_fn_ty;
+                     args = [ local "rp" ptr_ty ];
+                     ret_ty = LV_Void;
+                   });
             ];
           terminator = LV_Ret (Some (local "rp" ptr_ty));
         };
@@ -210,6 +213,7 @@ let mk_own_fn () : func =
         };
       ];
     linkage = Private;
+    attributes = [];
   }
 
 let builtins () : func list =
@@ -217,8 +221,8 @@ let builtins () : func list =
 
 let builtin_decls () : (string * lltype) list =
   [
-    ("syli_rt_ownership_decr", LV_Func ([ LV_Ptr ], LV_Void));
-    ("syli_rt_ownership_incr", LV_Func ([ LV_Ptr ], LV_Void));
+    ("syli_rt_ownership_decr", LV_Func ([ LV_Ptr_as 1 ], LV_Void));
+    ("syli_rt_ownership_incr", LV_Func ([ LV_Ptr_as 1 ], LV_Void));
   ]
 
 let inlinable_runtime_functions =

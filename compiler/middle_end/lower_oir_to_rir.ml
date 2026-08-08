@@ -45,7 +45,7 @@ let is_reference_ty = function
   | RR_Bool | RR_I64 | RR_I32 | RR_I16 | RR_I8 | RR_U64 | RR_U32 | RR_U16
   | RR_U8 | RR_Float | RR_Double | RR_Void | RR_Arrow _ ->
       false
-  | RR_Obj_Ptr -> true
+  | RR_Obj_Ptr _ -> true
   | RR_FnPtr -> false
   | RR_Char -> false
   | RR_Str -> false
@@ -202,7 +202,8 @@ let rec lower_ir_type (t : Oir.ir_type) : Rir.ir_type =
   | OR_Float -> RR_Float
   | OR_Double -> RR_Double
   | OR_FnPtr -> RR_FnPtr
-  | OR_Obj _ | OR_Obj_Ptr -> object_ptr_ty
+  | OR_Obj { cyclic_prop; _ } -> RR_Obj_Ptr cyclic_prop
+  | OR_Obj_Ptr -> RR_Obj_Ptr Oir.Unknown_cyclic_prop
   | OR_Char -> RR_Char
   | OR_Str -> RR_Str
   | OR_Void -> RR_Void

@@ -6,8 +6,12 @@
 #include <stdlib.h>
 
 #include "chunk_vector.h"
+#include "gc_roots.h"
 #include "object.h"
 #include "stack_frame.h"
+#include "env.h"
+
+#define BUDGET_BATCH_SIZE 1000
 
 typedef struct Suspected {
     obj_ptr obj;
@@ -65,10 +69,6 @@ typedef struct Syli_state {
     size_t total_objects_released;
     size_t total_objects_memory_freed;
 
-    // Shadowing stack frame indices for GC tracing
-    size_t current_frame_stack_index;
-    size_t snapshot_frame_stack_index;
-
     size_t generation_tracing;
 
     // Stack frame for root management
@@ -85,6 +85,10 @@ typedef struct Syli_state {
 
     size_t current_suspected_check_index;
     size_t snapshot_check_index;
+
+    // LLVM pre-computed records
+    SyliStackMap_Record_Entry* stackmap_record_entry;
+    size_t stackmap_record_entry_len;
 
 } Syli_state;
 

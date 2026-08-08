@@ -10,6 +10,16 @@ exception Lowering_error of string
 let fail (msg : string) : 'a = raise (Lowering_error msg)
 let label_of_block_id (id : int) : string = "bb" ^ string_of_int id
 let is_float_ir_type = function RR_Float | RR_Double -> true | _ -> false
+let gc_ptr_ty = LV_Ptr_as 1
+let object_struct_ty = LV_Struct [ LV_I64; LV_I64; LV_Array (0, LV_I64) ]
+let object_untag_fn_name = "syli_inlinable_ownership_untag"
+
+let lltype_of_obj_cyclic_prop (cp : Syli_ir.Oir.cyclic_prop) : lltype =
+  match cp with
+  | Syli_ir.Oir.Acyclic -> LV_Ptr
+  | Syli_ir.Oir.Cyclic_n_Trackable | Syli_ir.Oir.Acyclic_n_Trackable
+  | Syli_ir.Oir.Unknown_cyclic_prop ->
+      gc_ptr_ty
 
 let rec lltype_of_ir_type (ty : Rir.ir_type) : lltype =
   match ty with
@@ -21,7 +31,7 @@ let rec lltype_of_ir_type (ty : Rir.ir_type) : lltype =
   | RR_Float -> LV_Float
   | RR_Double -> LV_Double
   | RR_Void -> LV_Void
-  | RR_Obj_Ptr -> LV_Ptr
+  | RR_Obj_Ptr cp -> lltype_of_obj_cyclic_prop cp
   | RR_FnPtr -> LV_Ptr
   | RR_Char -> LV_I8
   | RR_Str -> LV_Struct [ LV_Ptr; LV_I64 ]
@@ -29,6 +39,7 @@ let rec lltype_of_ir_type (ty : Rir.ir_type) : lltype =
       LV_Func (List.map lltype_of_ir_type args, lltype_of_ir_type ret)
 
 let lltype_of_ty (t : Rir.ty) : lltype = lltype_of_ir_type t.ty
+let lltype_of_var (v : Rir.var) : lltype = lltype_of_ty v.ty
 
 let parse_int64 (s : string) : int64 =
   let normalized = String.trim s in
@@ -143,12 +154,11 @@ let rec lower_operand (ctx : lower_ctx) (op : Rir.operand) :
       match IntMap.find_opt key ctx.var_env with
       | Some op' ->
           if StringMap.mem v.fullname ctx.allocas then
-            let ctx, temp = fresh_reg ctx (lltype_of_ty v.ty) in
+            let ctx, temp = fresh_reg ctx (lltype_of_var v) in
             ( ctx,
               temp,
-              [
-                LV_Assign (temp, LV_Load { ptr = op'; ty = lltype_of_ty v.ty });
-              ] )
+              [ LV_Assign (temp, LV_Load { ptr = op'; ty = lltype_of_var v }) ]
+            )
           else (ctx, op', [])
       | None ->
           if not (StringSet.mem v.fullname ctx.known_globals) then
@@ -156,7 +166,7 @@ let rec lower_operand (ctx : lower_ctx) (op : Rir.operand) :
               (Printf.sprintf
                  "Unbound RIR variable during RIR->LLVM lowering: id=%d name=%s"
                  v.id v.fullname);
-          let load_ty = lltype_of_ty v.ty in
+          let load_ty = lltype_of_var v in
           let ctx, load_tmp = fresh_reg ctx load_ty in
           ( ctx,
             load_tmp,
@@ -178,7 +188,7 @@ let call_rhs (ctx : lower_ctx) ~(fn_name : string) ~(ret_ty : lltype)
 
 let assign_rhs_to_var (ctx : lower_ctx) (dst : Rir.var) (rhs : instr_rhs) :
     lower_ctx * instruction list =
-  let dst_op = LV_Local (var_name dst, lltype_of_ty dst.ty) in
+  let dst_op = LV_Local (var_name dst, lltype_of_var dst) in
   ( { ctx with var_env = IntMap.add dst.id dst_op ctx.var_env },
     [ LV_Assign (dst_op, rhs) ] )
 
@@ -191,21 +201,22 @@ let lower_object_slot_ptr (ctx : lower_ctx) (obj : Rir.operand)
     lower_ctx * instruction list * operand =
   let ctx, obj', extra1 = lower_operand ctx obj in
   let ctx, idx', extra2 = lower_operand ctx field_idx in
-  let object_ty = LV_Struct [ LV_I64; LV_I64; LV_Array (0, LV_I64) ] in
+  let object_ty = object_struct_ty in
+  let obj_ty = ty_of_operand obj' in
   let zero = LV_Constant (LV_Integer 0L, LV_I32) in
   let offset =
     LV_Constant (LV_Integer (Int64.of_int Rir.values_offset), LV_I32)
   in
-  let untag_fn_ty = LV_Func ([ LV_Ptr ], LV_Ptr) in
-  let ctx, untagged_ptr = fresh_reg ctx LV_Ptr in
+  let untag_fn_ty = LV_Func ([ obj_ty ], obj_ty) in
+  let ctx, untagged_ptr = fresh_reg ctx obj_ty in
   let untag_call =
     LV_Assign
       ( untagged_ptr,
         LV_Call
           {
-            fn = global "syli_inlinable_ownership_untag" untag_fn_ty;
+            fn = global object_untag_fn_name untag_fn_ty;
             args = [ obj' ];
-            ret_ty = LV_Ptr;
+            ret_ty = obj_ty;
           } )
   in
   let slot_ptr_rhs =
@@ -216,7 +227,7 @@ let lower_object_slot_ptr (ctx : lower_ctx) (obj : Rir.operand)
         result_ty = object_ty;
       }
   in
-  let ctx, slot_reg = fresh_reg ctx LV_Ptr in
+  let ctx, slot_reg = fresh_reg ctx obj_ty in
   ( ctx,
     extra1 @ extra2 @ [ untag_call; LV_Assign (slot_reg, slot_ptr_rhs) ],
     slot_reg )
@@ -286,7 +297,7 @@ let lower_target_operand (ctx : lower_ctx) (target : Rir.call_target)
       match StringMap.find_opt name ctx.functions with
       | Some (fn : Rir.function_rir) ->
           let params =
-            List.map (fun (v : Rir.var) -> lltype_of_ty v.ty) fn.params
+            List.map (fun (v : Rir.var) -> lltype_of_var v) fn.params
           in
           let fn_ty = LV_Func (params, lltype_of_ty fn.return_ty) in
           (ctx, global name fn_ty, [])
@@ -430,7 +441,7 @@ let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
       in
       let args_ops, extra_list = List.split args_results in
       let extra = List.concat extra_list in
-      let ret_ty = lltype_of_ty dst.ty in
+      let ret_ty = lltype_of_var dst in
       let ctx, fn_op, extra2 =
         lower_target_operand ctx target args_ops ret_ty
       in
@@ -447,7 +458,7 @@ let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
       in
       let args_ops, extra_list = List.split args_results in
       let extra = List.concat extra_list in
-      let ret_ty = lltype_of_ty dst.ty in
+      let ret_ty = lltype_of_var dst in
       let fn_name, ctx =
         match Ownership.use_if_inlinable_runtime_function fn_name with
         | Some fn_name -> (fn_name, ctx)
@@ -472,7 +483,7 @@ let lower_statement (ctx : lower_ctx) (stmt : Rir.statement) :
       let ctx, value_ops, extra = lower_operand ctx value in
       (ctx, [ ptr_instrs; extra; [ LV_Store (value_ops, typed_ptr) ] ])
   | Rir.RR_Move { dst; src } ->
-      let val_ty = lltype_of_ty dst.ty in
+      let val_ty = lltype_of_var dst in
       let ptr_op = LV_Local (var_name dst, LV_Ptr) in
       let ctx =
         {
@@ -537,7 +548,7 @@ let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
     List.fold_left
       (fun ctx (v : Rir.var) ->
         let name = var_name v in
-        let llty = lltype_of_ty v.ty in
+        let llty = lltype_of_var v in
         { ctx with var_env = IntMap.add v.id (local name llty) ctx.var_env })
       ctx fn.params
   in
@@ -549,9 +560,7 @@ let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
           {
             ctx with
             var_env =
-              IntMap.add v.id
-                (local (var_name v) (lltype_of_ty v.ty))
-                ctx.var_env;
+              IntMap.add v.id (local (var_name v) (lltype_of_var v)) ctx.var_env;
           })
       ctx fn.locals
   in
@@ -604,7 +613,7 @@ let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
     (final_ctx, blocks)
   in
   let params =
-    List.map (fun (v : Rir.var) -> (lltype_of_ty v.ty, var_name v)) fn.params
+    List.map (fun (v : Rir.var) -> (lltype_of_var v, var_name v)) fn.params
   in
   ( final_ctx,
     {
@@ -616,6 +625,7 @@ let lower_function (ctx : lower_ctx) (fn : Rir.function_rir) : lower_ctx * func
         (match fn.visibility with
         | CR_Public -> External
         | CR_Private -> Private);
+      attributes = [ "gc \"statepoint-example\"" ];
     } )
 
 let lower_global (g : Rir.global_value) : global_var =

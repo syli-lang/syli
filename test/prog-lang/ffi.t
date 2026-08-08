@@ -41,74 +41,74 @@
 
   $ cat test_binary.ll
   declare void @syli_print_i64(i64)
-  declare void @syli_rt_ownership_decr(ptr)
-  declare void @syli_rt_ownership_incr(ptr)
+  declare void @syli_rt_ownership_decr(ptr addrspace(1))
+  declare void @syli_rt_ownership_incr(ptr addrspace(1))
   
-  define i32 @syli_startup_program(i32 %argc, ptr %argv) {
+  define i32 @syli_startup_program(i32 %argc, ptr %argv) gc "statepoint-example" {
   bb0:
     call void @syli_modules_init()
     call void @syliTest_binary.main()
     ret i32 0
   }
   
-  define void @syli_modules_init() {
+  define void @syli_modules_init() gc "statepoint-example" {
   bb0:
     call void @__init.Test_binary()
     ret void
   }
   
-  define void @__init.Test_binary() {
+  define void @__init.Test_binary() gc "statepoint-example" {
   bb0:
     ret void
   }
   
-  define void @syliTest_binary.main() {
+  define void @syliTest_binary.main() gc "statepoint-example" {
   bb0:
     call void @syli_print_i64(i64 42)
     ret void
   }
   
-  define ptr @syli_inlinable_ownership_untag(ptr %p) {
+  define ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %p) {
   bb0:
-    %i = ptrtoint ptr %p to i64
+    %i = ptrtoint ptr addrspace(1) %p to i64
     %u = and i64 %i, -2
-    %r = inttoptr i64 %u to ptr
-    ret ptr %r
+    %r = inttoptr i64 %u to ptr addrspace(1)
+    ret ptr addrspace(1) %r
   }
   
-  define ptr @syli_inlinable_ownership_borrow(ptr %p) {
+  define ptr addrspace(1) @syli_inlinable_ownership_borrow(ptr addrspace(1) %p) {
   bb0:
-    %i = ptrtoint ptr %p to i64
+    %i = ptrtoint ptr addrspace(1) %p to i64
     %u = and i64 %i, -2
-    %r = inttoptr i64 %u to ptr
-    ret ptr %r
+    %r = inttoptr i64 %u to ptr addrspace(1)
+    ret ptr addrspace(1) %r
   }
   
-  define void @syli_inlinable_ownership_release(ptr %p) {
+  define void @syli_inlinable_ownership_release(ptr addrspace(1) %p) {
   bb0:
-    %pi = ptrtoint ptr %p to i64
+    %pi = ptrtoint ptr addrspace(1) %p to i64
     %tag = and i64 %pi, 1
     %is_own = icmp ne i64 %tag, 0
     br i1 %is_own, label %own, label %done
   own:
-    call void @syli_rt_ownership_decr(ptr %p)
+    call void @syli_rt_ownership_decr(ptr addrspace(1) %p)
     ret void
   done:
     ret void
   }
   
-  define ptr @syli_inlinable_ownership_own(ptr %p) {
+  define ptr addrspace(1) @syli_inlinable_ownership_own(ptr addrspace(1) %p) {
   bb0:
-    %pi = ptrtoint ptr %p to i64
+    %pi = ptrtoint ptr addrspace(1) %p to i64
     %tag = and i64 %pi, 1
     %is_borrow = icmp eq i64 %tag, 0
     br i1 %is_borrow, label %promote, label %done
   promote:
-    call void @syli_rt_ownership_incr(ptr %p)
     %r = or i64 %pi, 1
-    %rp = inttoptr i64 %r to ptr
-    ret ptr %rp
+    %rp = inttoptr i64 %r to ptr addrspace(1)
+    call void @syli_rt_ownership_incr(ptr addrspace(1) %rp)
+    ret ptr addrspace(1) %rp
   done:
-    ret ptr %p
+    ret ptr addrspace(1) %p
   }
   

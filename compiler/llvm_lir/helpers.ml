@@ -27,6 +27,7 @@ let rec string_of_lltype = function
   | LV_Double -> "double"
   | LV_Void -> "void"
   | LV_Ptr -> "ptr"
+  | LV_Ptr_as n -> Printf.sprintf "ptr addrspace(%d)" n
   | LV_Array (len, ty) -> Printf.sprintf "[%d x %s]" len (string_of_lltype ty)
   | LV_Struct fields ->
       let fields_str = String.concat ", " (List.map string_of_lltype fields) in
@@ -60,10 +61,12 @@ let string_of_operand = function
   | LV_Local (n, _) -> "%" ^ n
   | LV_Global (n, _) -> "@" ^ n
 
-let string_of_typed_operand op =
-  Printf.sprintf "%s %s"
-    (string_of_lltype (ty_of_operand op))
-    (string_of_operand op)
+let string_of_typed_operand = function
+  | LV_Global (n, _) -> Printf.sprintf "ptr @%s" n
+  | op ->
+      Printf.sprintf "%s %s"
+        (string_of_lltype (ty_of_operand op))
+        (string_of_operand op)
 
 let string_of_ibinop = function
   | LV_IAdd -> "add"

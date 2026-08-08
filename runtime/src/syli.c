@@ -9,11 +9,8 @@
 GCObject* syli_rt_rc_alloc_object(
     object_header_t header, size_t refcount, size_t words)
 {
-    uint64_t meta_ref_count
-        = refcount | (syli_state.tracing_current_bit_mark & MASK_MARKING_BIT);
-
-    // Tag the object as marked
-    meta_ref_count |= syli_state.tracing_current_bit_mark;
+    // Tag the object with the current generation's mark value
+    uint64_t meta_ref_count = refcount | syli_state.tracing_current_bit_mark;
 
     GCObject* obj = (GCObject*)syli_object_alloc(header, meta_ref_count, words);
 
@@ -53,16 +50,20 @@ void syli_rt_object_decr(Object* obj, obj_ptr obj_ptr)
     if (zone == Zone_GcLocal) {
         GCObject* local_obj = as_gc_object(obj);
         local_obj->meta_ref_count--;
-        return;
-    }
 
-    if (syli_object_refcount(obj) == 0) {
-        if (syli_object_is_mono_imm(obj)) {
-            syli_state.total_objects_memory_freed++;
-            free(obj);
+        if (syli_object_refcount(obj) == 0) {
+            if (syli_object_is_mono_imm(obj)) {
+                syli_state.total_objects_memory_freed++;
+
+                // Freeing an object that is not cyclic and has no value pointer
+                free(obj);
+                return;
+            }
+            gc_vector_push_back(&syli_state.releasing_waitlist, obj_ptr);
             return;
+        } else if (syli_object_is_cyclic(obj)) {
+            gc_add_suspect(obj_ptr);
         }
-        gc_vector_push_back(&syli_state.releasing_waitlist, obj_ptr);
     }
 }
 
@@ -259,9 +260,13 @@ void syli_rt_ownership_check_lost_cyclic_release(obj_ptr ptr)
 
 void syli_rt_ownership_notify_mutation(obj_ptr ptr, obj_ptr target_ptr)
 {
-    Object* obj = syli_object_of_obj_ptr(ptr);
-    Object* target = syli_object_of_obj_ptr(target_ptr);
-    syli_rt_object_notify_mutation(obj, target, target_ptr);
+    if ((syli_state.tracing_state == Tracing
+            || syli_state.tracing_state == Mutation_Prepare)
+        && syli_ownership_is_own_ref(ptr)) {
+        Object* obj    = syli_object_of_obj_ptr(ptr);
+        Object* target = syli_object_of_obj_ptr(target_ptr);
+        syli_rt_object_notify_mutation(obj, target, target_ptr);
+    }
 }
 
 void syli_rt_ownership_release(void* ptr)
@@ -279,7 +284,6 @@ obj_ptr syli_rt_ownership_own(obj_ptr ptr)
     if (syli_ownership_is_own_ref(ptr)) {
         return ptr;
     }
-    assert(syli_ownership_is_own_ref(ptr));
     Object* obj = (Object*)syli_ownership_untag(ptr);
     assert(obj != NULL);
     syli_rt_object_incr(obj);

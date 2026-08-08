@@ -29,7 +29,7 @@ set(COMMON_C_FLAGS
 
 # Optional native architecture optimization
 option(USE_MARCH_NATIVE "Enable -march=native optimization" ON)
-if(USE_MARCH_NATIVE)
+if(USE_MARCH_NATIVE AND NOT APPLE)
     list(APPEND COMMON_C_FLAGS -march=native)
 endif()
 
@@ -52,10 +52,12 @@ add_library(syliruntime STATIC
     src/syli_state.c
     src/syli_state_gc_releasing.c
     src/syli_state_gc_tracing.c
+    src/syli_state_gc_roots.c
     src/stack_frame.c
     src/main.c
     src/syli_primitives.c
     src/syli.c
+    src/env.c
 )
 
 target_include_directories(syliruntime PUBLIC
@@ -64,6 +66,23 @@ target_include_directories(syliruntime PUBLIC
 )
 
 target_link_libraries(syliruntime PRIVATE runtime_sanitizers)
+
+# libunwind for the stack-map root unwinder (Linux only; macOS provides the
+# `_Unwind_*` API in libSystem)
+find_library(UNWIND_LIB unwind)
+if(APPLE)
+    unset(UNWIND_ARCH_LIB)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+    find_library(UNWIND_ARCH_LIB unwind-aarch64)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    find_library(UNWIND_ARCH_LIB unwind-x86_64)
+endif()
+if(UNWIND_LIB)
+  target_link_libraries(syliruntime PRIVATE ${UNWIND_LIB})
+endif()
+if(UNWIND_ARCH_LIB)
+  target_link_libraries(syliruntime PRIVATE ${UNWIND_ARCH_LIB})
+endif()
 
 # Allocator options
 option(USE_MIMALLOC "Use mimalloc allocator" OFF)
@@ -190,6 +209,13 @@ target_include_directories(test_gc PRIVATE
 )
 target_link_libraries(test_gc PRIVATE syliruntime)
 
+add_executable(test_gc_roots tests/test_gc_roots.c)
+target_include_directories(test_gc_roots PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(test_gc_roots PRIVATE syliruntime)
+
 add_executable(test_graph_marking tests/test_gc_tracing_graph.c)
 target_include_directories(test_graph_marking PRIVATE
     ${CMAKE_SOURCE_DIR}
@@ -245,6 +271,7 @@ add_custom_target(build-tests
     DEPENDS
         test_header_object
         test_gc
+        test_gc_roots
         test_graph_marking
         test_chunk_vector
         test_object
@@ -269,6 +296,7 @@ add_custom_target(build-all
 # Run targets
 add_custom_target(run-tests
     COMMAND $<TARGET_FILE:test_gc>
+    COMMAND $<TARGET_FILE:test_gc_roots>
     COMMAND $<TARGET_FILE:test_chunk_vector>
     COMMAND $<TARGET_FILE:test_object>
     COMMAND $<TARGET_FILE:test_header_object>

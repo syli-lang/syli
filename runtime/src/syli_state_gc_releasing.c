@@ -133,7 +133,8 @@ void syli_state_gc_releasing()
         case Releasing_Idle:
 
             if (vector_size_obj_ptr(&syli_state.releasing_waitlist)
-                < syli_state.THRESHOLD_RELEASING_BUCKET) {
+                    < syli_state.THRESHOLD_RELEASING_BUCKET
+                || vector_size_obj_ptr(&syli_state.releasing_waitlist) == 0) {
                 return; // Not enough objects to release
             }
 

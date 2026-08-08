@@ -285,206 +285,206 @@
   $ cat test_file.ll
   declare void @syli_print_i64(i64)
   declare void @syli_rt_gc_cycle()
-  declare ptr @syli_rt_ownership_alloc_object(i64, i32, i32)
-  declare void @syli_rt_ownership_decr(ptr)
-  declare void @syli_rt_ownership_incr(ptr)
+  declare ptr addrspace(1) @syli_rt_ownership_alloc_object(i64, i32, i32)
+  declare void @syli_rt_ownership_decr(ptr addrspace(1))
+  declare void @syli_rt_ownership_incr(ptr addrspace(1))
   
-  define i32 @syli_startup_program(i32 %argc, ptr %argv) {
+  define i32 @syli_startup_program(i32 %argc, ptr %argv) gc "statepoint-example" {
   bb0:
     call void @syli_modules_init()
     call void @syliTest_file.main()
     ret i32 0
   }
   
-  define void @syli_modules_init() {
+  define void @syli_modules_init() gc "statepoint-example" {
   bb0:
     call void @__init.Test_file()
     ret void
   }
   
-  define void @__init.Test_file() {
+  define void @__init.Test_file() gc "statepoint-example" {
   bb0:
     ret void
   }
   
-  define void @syliTest_file.main() {
+  define void @syliTest_file.main() gc "statepoint-example" {
   bb0:
-    %Sy_var6 = alloca ptr
-    %Sy_var4 = alloca ptr
+    %Sy_var6 = alloca ptr addrspace(1)
+    %Sy_var4 = alloca ptr addrspace(1)
     call void @syli_rt_gc_cycle()
-    %Sy_var0 = call ptr @syli_rt_ownership_alloc_object(i64 2377900603251621890, i32 1, i32 2)
+    %Sy_var0 = call ptr addrspace(1) @syli_rt_ownership_alloc_object(i64 2377900603251621890, i32 1, i32 2)
     ; nop
     %Sy_accum_fn_0 = bitcast ptr @__make_closure_accum.syliTest_file.add.67_ret_i64 to ptr
-    %Sy_tmp0 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_var0)
-    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp0, i32 0, i32 2, i32 0
-    store ptr %Sy_accum_fn_0, ptr %Sy_tmp1
-    %Sy_tmp2 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_var0)
-    %Sy_tmp3 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp2, i32 0, i32 2, i32 1
-    store i64 1, ptr %Sy_tmp3
+    %Sy_tmp0 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_var0)
+    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp0, i32 0, i32 2, i32 0
+    store ptr %Sy_accum_fn_0, ptr addrspace(1) %Sy_tmp1
+    %Sy_tmp2 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_var0)
+    %Sy_tmp3 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp2, i32 0, i32 2, i32 1
+    store i64 1, ptr addrspace(1) %Sy_tmp3
     ; nop
     call void @syli_rt_gc_cycle()
-    %Sy_var1 = call ptr @syli_rt_ownership_alloc_object(i64 2377900603251621890, i32 1, i32 2)
+    %Sy_var1 = call ptr addrspace(1) @syli_rt_ownership_alloc_object(i64 2377900603251621890, i32 1, i32 2)
     ; nop
     %Sy_accum_fn_1 = bitcast ptr @__make_closure_accum.syliTest_file.sub.77_ret_i64 to ptr
-    %Sy_tmp4 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_var1)
-    %Sy_tmp5 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp4, i32 0, i32 2, i32 0
-    store ptr %Sy_accum_fn_1, ptr %Sy_tmp5
-    %Sy_tmp6 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_var1)
-    %Sy_tmp7 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp6, i32 0, i32 2, i32 1
-    store i64 1, ptr %Sy_tmp7
+    %Sy_tmp4 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_var1)
+    %Sy_tmp5 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp4, i32 0, i32 2, i32 0
+    store ptr %Sy_accum_fn_1, ptr addrspace(1) %Sy_tmp5
+    %Sy_tmp6 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_var1)
+    %Sy_tmp7 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp6, i32 0, i32 2, i32 1
+    store i64 1, ptr addrspace(1) %Sy_tmp7
     ; nop
     call void @syli_rt_gc_cycle()
-    %Sy_var2 = call ptr @syli_rt_ownership_alloc_object(i64 2377900603251621890, i32 1, i32 2)
+    %Sy_var2 = call ptr addrspace(1) @syli_rt_ownership_alloc_object(i64 2377900603251621890, i32 1, i32 2)
     ; nop
     %Sy_accum_fn_2 = bitcast ptr @__make_closure_accum.syliTest_file.mul.87_ret_i64 to ptr
-    %Sy_tmp8 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_var2)
-    %Sy_tmp9 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp8, i32 0, i32 2, i32 0
-    store ptr %Sy_accum_fn_2, ptr %Sy_tmp9
-    %Sy_tmp10 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_var2)
-    %Sy_tmp11 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp10, i32 0, i32 2, i32 1
-    store i64 1, ptr %Sy_tmp11
+    %Sy_tmp8 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_var2)
+    %Sy_tmp9 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp8, i32 0, i32 2, i32 0
+    store ptr %Sy_accum_fn_2, ptr addrspace(1) %Sy_tmp9
+    %Sy_tmp10 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_var2)
+    %Sy_tmp11 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp10, i32 0, i32 2, i32 1
+    store i64 1, ptr addrspace(1) %Sy_tmp11
     ; nop
     br i1 true, label %bb1, label %bb2
   bb2:
-    call void @syli_inlinable_ownership_release(ptr %Sy_var0)
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_var0)
     br i1 true, label %bb3, label %bb4
   bb4:
-    call void @syli_inlinable_ownership_release(ptr %Sy_var1)
-    store ptr %Sy_var2, ptr %Sy_var6
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_var1)
+    store ptr addrspace(1) %Sy_var2, ptr %Sy_var6
     br label %bb5
   bb3:
-    call void @syli_inlinable_ownership_release(ptr %Sy_var2)
-    store ptr %Sy_var1, ptr %Sy_var6
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_var2)
+    store ptr addrspace(1) %Sy_var1, ptr %Sy_var6
     br label %bb5
   bb5:
-    %Sy_tmp12 = load ptr, ptr %Sy_var6
-    store ptr %Sy_tmp12, ptr %Sy_var4
+    %Sy_tmp12 = load ptr addrspace(1), ptr %Sy_var6
+    store ptr addrspace(1) %Sy_tmp12, ptr %Sy_var4
     br label %bb6
   bb1:
-    call void @syli_inlinable_ownership_release(ptr %Sy_var2)
-    call void @syli_inlinable_ownership_release(ptr %Sy_var1)
-    store ptr %Sy_var0, ptr %Sy_var4
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_var2)
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_var1)
+    store ptr addrspace(1) %Sy_var0, ptr %Sy_var4
     br label %bb6
   bb6:
-    %Sy_tmp13 = load ptr, ptr %Sy_var4
-    %Sy_tmp14 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_tmp13)
-    %Sy_tmp15 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp14, i32 0, i32 2, i32 0
-    %Sy_accum_ptr_3 = load ptr, ptr %Sy_tmp15
-    %Sy_tmp16 = load ptr, ptr %Sy_var4
-    %Sy_var7 = call i64 %Sy_accum_ptr_3(i64 2, ptr %Sy_tmp16, i64 0)
+    %Sy_tmp13 = load ptr addrspace(1), ptr %Sy_var4
+    %Sy_tmp14 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_tmp13)
+    %Sy_tmp15 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp14, i32 0, i32 2, i32 0
+    %Sy_accum_ptr_3 = load ptr, ptr addrspace(1) %Sy_tmp15
+    %Sy_tmp16 = load ptr addrspace(1), ptr %Sy_var4
+    %Sy_var7 = call i64 %Sy_accum_ptr_3(i64 2, ptr addrspace(1) %Sy_tmp16, i64 0)
     ; nop
     call void @syli_print_i64(i64 %Sy_var7)
     ret void
   }
   
-  define i64 @syliTest_file.mul__i64__i64_ret_i64(i64 %x, i64 %y) {
+  define i64 @syliTest_file.mul__i64__i64_ret_i64(i64 %x, i64 %y) gc "statepoint-example" {
   bb0:
     %Sy_var0 = mul i64 %x, %y
     ret i64 %Sy_var0
   }
   
-  define i64 @syliTest_file.sub__i64__i64_ret_i64(i64 %x, i64 %y) {
+  define i64 @syliTest_file.sub__i64__i64_ret_i64(i64 %x, i64 %y) gc "statepoint-example" {
   bb0:
     %Sy_var0 = sub i64 %x, %y
     ret i64 %Sy_var0
   }
   
-  define i64 @syliTest_file.add__i64__i64_ret_i64(i64 %x, i64 %y) {
+  define i64 @syliTest_file.add__i64__i64_ret_i64(i64 %x, i64 %y) gc "statepoint-example" {
   bb0:
     %Sy_var0 = add i64 %x, %y
     ret i64 %Sy_var0
   }
   
-  define i64 @__make_closure_accum.syliTest_file.add.67_ret_i64(i64 %Sy_x0, ptr %Sy_clos, i64 %Sy_dp_id) {
+  define i64 @__make_closure_accum.syliTest_file.add.67_ret_i64(i64 %Sy_x0, ptr addrspace(1) %Sy_clos, i64 %Sy_dp_id) gc "statepoint-example" {
   bb0:
-    %Sy_tmp0 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_clos)
-    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp0, i32 0, i32 2, i64 1
-    %Sy_val0 = load i64, ptr %Sy_tmp1
-    call void @syli_inlinable_ownership_release(ptr %Sy_clos)
+    %Sy_tmp0 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_clos)
+    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp0, i32 0, i32 2, i64 1
+    %Sy_val0 = load i64, ptr addrspace(1) %Sy_tmp1
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_clos)
     %Sy_rst = call i64 @__wrapper.syliTest_file.add.i64_i64_ret_i64(i64 %Sy_val0, i64 %Sy_x0)
     ret i64 %Sy_rst
   }
   
-  define i64 @__make_closure_accum.syliTest_file.mul.87_ret_i64(i64 %Sy_x0, ptr %Sy_clos, i64 %Sy_dp_id) {
+  define i64 @__make_closure_accum.syliTest_file.mul.87_ret_i64(i64 %Sy_x0, ptr addrspace(1) %Sy_clos, i64 %Sy_dp_id) gc "statepoint-example" {
   bb0:
-    %Sy_tmp0 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_clos)
-    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp0, i32 0, i32 2, i64 1
-    %Sy_val0 = load i64, ptr %Sy_tmp1
-    call void @syli_inlinable_ownership_release(ptr %Sy_clos)
+    %Sy_tmp0 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_clos)
+    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp0, i32 0, i32 2, i64 1
+    %Sy_val0 = load i64, ptr addrspace(1) %Sy_tmp1
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_clos)
     %Sy_rst = call i64 @__wrapper.syliTest_file.mul.i64_i64_ret_i64(i64 %Sy_val0, i64 %Sy_x0)
     ret i64 %Sy_rst
   }
   
-  define i64 @__make_closure_accum.syliTest_file.sub.77_ret_i64(i64 %Sy_x0, ptr %Sy_clos, i64 %Sy_dp_id) {
+  define i64 @__make_closure_accum.syliTest_file.sub.77_ret_i64(i64 %Sy_x0, ptr addrspace(1) %Sy_clos, i64 %Sy_dp_id) gc "statepoint-example" {
   bb0:
-    %Sy_tmp0 = call ptr @syli_inlinable_ownership_untag(ptr %Sy_clos)
-    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr %Sy_tmp0, i32 0, i32 2, i64 1
-    %Sy_val0 = load i64, ptr %Sy_tmp1
-    call void @syli_inlinable_ownership_release(ptr %Sy_clos)
+    %Sy_tmp0 = call ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %Sy_clos)
+    %Sy_tmp1 = getelementptr { i64, i64, [0 x i64] }, ptr addrspace(1) %Sy_tmp0, i32 0, i32 2, i64 1
+    %Sy_val0 = load i64, ptr addrspace(1) %Sy_tmp1
+    call void @syli_inlinable_ownership_release(ptr addrspace(1) %Sy_clos)
     %Sy_rst = call i64 @__wrapper.syliTest_file.sub.i64_i64_ret_i64(i64 %Sy_val0, i64 %Sy_x0)
     ret i64 %Sy_rst
   }
   
-  define i64 @__wrapper.syliTest_file.add.i64_i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1) {
+  define i64 @__wrapper.syliTest_file.add.i64_i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1) gc "statepoint-example" {
   bb0:
     %Sy_rst = call i64 @syliTest_file.add__i64__i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1)
     ret i64 %Sy_rst
   }
   
-  define i64 @__wrapper.syliTest_file.mul.i64_i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1) {
+  define i64 @__wrapper.syliTest_file.mul.i64_i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1) gc "statepoint-example" {
   bb0:
     %Sy_rst = call i64 @syliTest_file.mul__i64__i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1)
     ret i64 %Sy_rst
   }
   
-  define i64 @__wrapper.syliTest_file.sub.i64_i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1) {
+  define i64 @__wrapper.syliTest_file.sub.i64_i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1) gc "statepoint-example" {
   bb0:
     %Sy_rst = call i64 @syliTest_file.sub__i64__i64_ret_i64(i64 %Sy_x0, i64 %Sy_x1)
     ret i64 %Sy_rst
   }
   
-  define ptr @syli_inlinable_ownership_untag(ptr %p) {
+  define ptr addrspace(1) @syli_inlinable_ownership_untag(ptr addrspace(1) %p) {
   bb0:
-    %i = ptrtoint ptr %p to i64
+    %i = ptrtoint ptr addrspace(1) %p to i64
     %u = and i64 %i, -2
-    %r = inttoptr i64 %u to ptr
-    ret ptr %r
+    %r = inttoptr i64 %u to ptr addrspace(1)
+    ret ptr addrspace(1) %r
   }
   
-  define ptr @syli_inlinable_ownership_borrow(ptr %p) {
+  define ptr addrspace(1) @syli_inlinable_ownership_borrow(ptr addrspace(1) %p) {
   bb0:
-    %i = ptrtoint ptr %p to i64
+    %i = ptrtoint ptr addrspace(1) %p to i64
     %u = and i64 %i, -2
-    %r = inttoptr i64 %u to ptr
-    ret ptr %r
+    %r = inttoptr i64 %u to ptr addrspace(1)
+    ret ptr addrspace(1) %r
   }
   
-  define void @syli_inlinable_ownership_release(ptr %p) {
+  define void @syli_inlinable_ownership_release(ptr addrspace(1) %p) {
   bb0:
-    %pi = ptrtoint ptr %p to i64
+    %pi = ptrtoint ptr addrspace(1) %p to i64
     %tag = and i64 %pi, 1
     %is_own = icmp ne i64 %tag, 0
     br i1 %is_own, label %own, label %done
   own:
-    call void @syli_rt_ownership_decr(ptr %p)
+    call void @syli_rt_ownership_decr(ptr addrspace(1) %p)
     ret void
   done:
     ret void
   }
   
-  define ptr @syli_inlinable_ownership_own(ptr %p) {
+  define ptr addrspace(1) @syli_inlinable_ownership_own(ptr addrspace(1) %p) {
   bb0:
-    %pi = ptrtoint ptr %p to i64
+    %pi = ptrtoint ptr addrspace(1) %p to i64
     %tag = and i64 %pi, 1
     %is_borrow = icmp eq i64 %tag, 0
     br i1 %is_borrow, label %promote, label %done
   promote:
-    call void @syli_rt_ownership_incr(ptr %p)
     %r = or i64 %pi, 1
-    %rp = inttoptr i64 %r to ptr
-    ret ptr %rp
+    %rp = inttoptr i64 %r to ptr addrspace(1)
+    call void @syli_rt_ownership_incr(ptr addrspace(1) %rp)
+    ret ptr addrspace(1) %rp
   done:
-    ret ptr %p
+    ret ptr addrspace(1) %p
   }
   
 
