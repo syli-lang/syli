@@ -65,9 +65,7 @@ static void run_tracing_bench(const char* label, obj_ptr* root_slot,
         syli_state.THRESHOLD_RELEASING_BUCKET    = 1;
         syli_state.tracing_steps                 = 0;
 
-        obj_ptr* frame_roots[] = { root_slot };
-        Frame frame = { .root_count = 1, .roots = frame_roots };
-        syli_state_push_frame_scope(&frame);
+        gc_tracing_worklist_push(*root_slot);
 
         gc_add_suspect(*root_slot);
 
@@ -91,7 +89,6 @@ static void run_tracing_bench(const char* label, obj_ptr* root_slot,
         }
 
         total_tracing_steps += syli_state.tracing_steps;
-        syli_state_pop_frame_scope();
     }
 
     double avg_gc_ms         = (total_gc_ns / (double)N_ROUNDS) / 1e6;

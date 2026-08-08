@@ -402,13 +402,11 @@ static ScenarioResult run_mixed_scenario(size_t rounds)
         init_runtime_defaults();
 
         obj_ptr* root_slots = (obj_ptr*)malloc(trace_pairs * sizeof(obj_ptr));
-        obj_ptr** roots     = (obj_ptr**)malloc(trace_pairs * sizeof(obj_ptr*));
         obj_ptr* children   = (obj_ptr*)malloc(trace_pairs * sizeof(obj_ptr));
-        if (!root_slots || !roots || !children) {
+        if (!root_slots || !children) {
             fprintf(
                 stderr, "bench_gc: failed to allocate mixed tracing roots\n");
             free(root_slots);
-            free(roots);
             free(children);
             exit(1);
         }
@@ -426,16 +424,14 @@ static ScenarioResult run_mixed_scenario(size_t rounds)
                 = (uint64_t)children[i];
             syli_object_data(syli_object_of_obj_ptr(children[i]))[0]
                 = (uint64_t)root_slots[i];
-            roots[i] = &root_slots[i];
         }
 
-        Frame frame = { .root_count = (uint32_t)trace_pairs, .roots = roots };
-        syli_state_push_frame_scope(&frame);
+        for (size_t i = 0; i < trace_pairs; i++)
+            gc_tracing_worklist_push(root_slots[i]);
 
         for (size_t i = 0; i < release_count; i++) {
             obj_ptr rel = make_ref_object(0, Acyclic);
-            syli_rt_ownership_decr(rel);
-            gc_vector_push_back(&syli_state.releasing_waitlist, rel);
+            syli_rt_ownership_release(rel);
         }
 
         for (size_t i = 0; i < trace_pairs; i++) {
@@ -449,13 +445,11 @@ static ScenarioResult run_mixed_scenario(size_t rounds)
         finalize_round_metrics(
             round, total_objects, &before, &after, time_diff_ns(&t0, &t1));
 
-        syli_state_pop_frame_scope();
         for (size_t i = 0; i < trace_pairs; i++) {
             syli_free_ptr(root_slots[i]);
             syli_free_ptr(children[i]);
         }
         free(children);
-        free(roots);
         free(root_slots);
         syli_state_destroy();
     }

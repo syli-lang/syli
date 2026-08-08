@@ -19,7 +19,6 @@
 
 #include "header_object.h"
 #include "object.h"
-#include "stack_frame.h"
 #include "syli_primitives.h"
 
 /************************************************
@@ -87,9 +86,5 @@ void syli_rt_gc_cycle();
 
 Object* syli_rt_object_copy(Object* src);
 void syli_rt_object_raw_copy(Object* src, Object* dst);
-
-// Stack frame roots management
-void syli_rt_push_frame_scope(Frame* frame);
-void syli_rt_pop_frame_scope(void);
 
 #endif /* SYLI_H */
