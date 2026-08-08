@@ -10,7 +10,7 @@ jobs:
   build-and-test:
     strategy:
       matrix:
-        os: [ubuntu-24.04, macos-latest]
+        os: [ubuntu-26.04, ubuntu-26.04-arm, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -22,7 +22,7 @@ jobs:
           ocaml-compiler: 5.5.0
 
       - name: Install LLVM + Ninja (Ubuntu)
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-26.04' || matrix.os == 'ubuntu-26.04-arm'
         run: |
           sudo apt-get update
           sudo apt-get install -y llvm-18 clang-18 ninja-build libunwind-dev
@@ -62,7 +62,7 @@ jobs:
           make -C runtime test
 
       - name: Build runtime (Ubuntu)
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-26.04'
         run: |
           make -C runtime all
           make -C runtime test
@@ -74,7 +74,7 @@ jobs:
           opam exec -- dune test
 
       - name: Run all tests (Ubuntu)
-        if: matrix.os == 'ubuntu-24.04'
+        if: matrix.os == 'ubuntu-26.04'
         run: |
           source setup.sh
           opam exec -- dune test
