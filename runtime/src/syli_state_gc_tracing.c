@@ -92,6 +92,8 @@ static void gc_one_step_tracing(void)
 
 static void gc_one_step_prepare_tracing_mutations()
 {
+    // obj is not pushed to the tracing_worklist, if you noticed,
+    // this is because obj is already marked.
 
     obj_ptr obj_p = gc_vector_pop_back(&syli_state.tracing_mutations_worklist);
     assert(syli_ownership_is_own_ref(obj_p));
