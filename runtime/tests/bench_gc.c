@@ -327,8 +327,7 @@ static void setup_releasing_workload(size_t chain_count, size_t chain_len)
     }
 
     for (size_t i = 0; i < chain_count; i++) {
-        syli_rt_ownership_decr(roots[i]);
-        gc_vector_push_back(&syli_state.releasing_waitlist, roots[i]);
+        syli_rt_ownership_release(roots[i]);
     }
 
     free(roots);

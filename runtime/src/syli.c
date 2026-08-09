@@ -203,9 +203,11 @@ void syli_rt_object_notify_mutation(
         return;
     }
 
-    gc_mark_tag_object(
-        target); // mark the target as marked to avoid multiple notifications
-                 // for the same object in the same tracing cycle
+    // mark target to avoid re-adding it again and again
+    // since the tracing is concurrent and it is possible
+    // to another mutation to re-add it.
+    gc_mark_tag_object(target);
+
     gc_vector_push_back(&syli_state.tracing_mutations_worklist, target_ptr);
 }
 
