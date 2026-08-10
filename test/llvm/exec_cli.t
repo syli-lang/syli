@@ -224,7 +224,26 @@ End-to-end runtime execution test with libsyliruntime.a:
   >   syli_print_i64(42)
   > EOF
   $ dune exec sylic -- llvm test_e2e_print.sy 2>&1 | head -20
-  Fatal error: exception Syli_typing__Env.Type_error("main must return unit or int64")
+  declare void @syli_print_i64(i64)
+  declare void @syli_rt_ownership_decr(ptr addrspace(1))
+  declare void @syli_rt_ownership_incr(ptr addrspace(1))
+  
+  define i32 @syli_startup_program(i32 %argc, ptr %argv) gc "statepoint-example" {
+  bb0:
+    call void @syli_modules_init()
+    call void @syliTest_e2e_print.main()
+    ret i32 0
+  }
+  
+  define void @syli_modules_init() gc "statepoint-example" {
+  bb0:
+    call void @__init.Test_e2e_print()
+    ret void
+  }
+  
+  define void @__init.Test_e2e_print() gc "statepoint-example" {
+  bb0:
+    ret void
 
 Runtime linking test compiles and links successfully:
   $ cat >test_e2e_add.sy <<EOF
@@ -233,7 +252,6 @@ Runtime linking test compiles and links successfully:
   >   syli_print_i64(result)
   > EOF
   $ dune exec sylic -- llvm test_e2e_add.sy > test_e2e_add.ll 2>&1
-  ***** UNREACHABLE *****
   $ test -f test_e2e_add.ll && echo "Generated LLVM IR"
-  ***** UNREACHABLE *****
+  Generated LLVM IR
 

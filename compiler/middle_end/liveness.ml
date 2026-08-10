@@ -145,6 +145,7 @@ let analyze (fn : function_oir) : t =
               if block.id = fn.entry_block.id then
                 match block.statements with
                 | first :: _ -> (
+                    (*The first instruction reveals the liveness*)
                     match IntMap.find_opt first.id result with
                     | Some i -> IntSet.diff info.live_entry i.live_before
                     | None -> info.live_entry)
