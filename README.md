@@ -55,9 +55,6 @@ dune runtest
 ## Examples
 
 ```sy
-signature:
-  extern syli_print_i64 : int64 -> unit = "syli_print_i64"
-end
 let add x y = x + y
 let apply f x = f x
 let compose f g x = f (g x)
@@ -68,9 +65,6 @@ fn main () =
 
 ```
 $ cat bench/clos4.sy
-signature:
-  extern syli_print_i64 : int64 -> unit = "syli_print_i64"
-end
 let rec add_n n x = n + x
 let rec apply_n f x n =
   if n == 0 then
@@ -84,7 +78,7 @@ let rec stress n acc =
     let f = add_n n
     let r = apply_n f 0 100
     stress (n - 1) (acc + r)
-fn main () = syli_print_i64(stress 1000 0)
+fn main () = syli_print_i64 (stress 1000 0)
 ```
 
 

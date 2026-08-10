@@ -4,6 +4,7 @@ type t = Core | Cir_raw | Cir_mono | Cir | Oir | Rir | Llvm | Exec
 
 let run (fmt : t) (filename : string) : string =
   let parsed = Syli_parsing.Utils.parse_file filename in
+  let parsed = Syli_parsing.Builtins.inject parsed in
   let _infer_state, typed_items = Syli_typing.Infer.infer_program parsed in
   let desugared = Lower_ast_to_core.lower typed_items in
   let normalized () = Syli_core.Normalize.run desugared in

@@ -1,8 +1,5 @@
 Closure as an argument with multiple captured variables:
   $ cat >test_multi.sy <<EOF
-  > signature:
-  >   extern syli_print_i64 : int64 -> unit = "syli_print_i64"
-  > end
   > let apply f x y = f x y
   > let add x y z = y
   > fn main () =
@@ -19,9 +16,6 @@ Closure as an argument with multiple captured variables:
 
 Closure as an argument with multiple captured variables:
   $ cat >test_multi.sy <<EOF
-  > signature:
-  >   extern syli_print_i64 : int64 -> unit = "syli_print_i64"
-  > end
   > let apply f x y = f x y
   > let add x y z = x
   > fn main () =
@@ -51,9 +45,6 @@ Closure with multiple captured variables:
 
 Complex test combining closures, dispatch, casts, partial application, and if-then-else:
   $ cat >complex_dispatch.sy <<EOF
-  > signature:
-  >   extern syli_print_i64 : int64 -> unit = "syli_print_i64"
-  > end
   > let add x y z = x
   > let apply f x y = f x y
   > fn main () =
@@ -79,9 +70,6 @@ Complex test combining closures, dispatch, casts, partial application, and if-th
   11111
 
   $ cat >test_e2e_print.sy <<EOF
-  > signature:
-  >   extern syli_print_i64 : int64 -> unit = "syli_print_i64"
-  > end
   > type person = { name: int64; age: int64 }
   > fn main () =
   >     let record = { name = 10; age = 30 }
@@ -93,9 +81,6 @@ Complex test combining closures, dispatch, casts, partial application, and if-th
 
 Test 4: Compile, link, and run arithmetic binary
   $ cat >test_e2e_expr.sy <<EOF2
-  > signature:
-  >   extern syli_print_i64 : int64 -> unit = "syli_print_i64"
-  > end
   > fn main () = syli_print_i64(100 + 23)
   > EOF2
   $ dune exec sylic -- build test_e2e_expr.sy
