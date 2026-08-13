@@ -3,9 +3,9 @@
 *)
 
 open Syli_common
+open Typed_ast
 
 exception Type_error of string
-(** Exception raised on type errors during inference. *)
 
 type scheme = { vars : int list; body : Typed_ast.ty }
 (** A type scheme (polymorphic type with quantified variables). *)
@@ -15,7 +15,6 @@ module TyEnv : sig
   type t = scheme StringMap.t
 
   val empty : t
-  (** The empty type environment. *)
 
   val extend : string -> scheme -> t -> t
   (** Binds a name to a scheme in the environment. *)
@@ -27,8 +26,10 @@ module TyEnv : sig
   (** Returns all bindings as an association list. *)
 end
 
-type ty_record_info = { ty_decl : Typed_ast.ty_decl; key : string }
-(** Information about a record type used during inference. *)
+type ty_record_info = {
+  record_fields : record_field_decl list;
+  ty_decl : ty_decl;
+}
 
 type infer_ctx = {
   env : TyEnv.t;
@@ -42,24 +43,10 @@ type infer_ctx = {
     state through the type-checker. *)
 
 val empty_ctx : infer_ctx
-(** Inference context with all maps initialized to empty. *)
-
-val lookup_record_candidates : infer_ctx -> string -> ty_record_info list
-(** Retrieves all record type definitions registered under the given structural
-    key. *)
-
-val record_key_of_field_names : string list -> string
-(** Computes a structural record key by sorting and joining field names (used
-    for record type disambiguation). *)
-
-val record_key_of_record_decl_fields :
-  Typed_ast.record_field_decl list -> string
-(** Computes a structural record key from a list of typed record field
-    declarations. *)
 
 val register_ty_decl : infer_ctx -> Typed_ast.ty_decl -> infer_ctx
 (** Adds a type declaration to the inference context, making it available for
-    lookup by name and record key. *)
+    lookup by name *)
 
-val lookup_ty_decl_by_name : infer_ctx -> string -> Typed_ast.ty_decl option
-(** Finds a registered type declaration by its name. *)
+val find_record_by_field_names :
+  infer_ctx -> string list -> ty_record_info option

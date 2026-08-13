@@ -70,7 +70,7 @@
   > end
   > EOF
   $ dune exec sylic typing parse0.src
-  Fatal error: exception Syli_typing__Env.Type_error("type person has no field 'something'")
+  Fatal error: exception Syli_typing__Env.Type_error("no record has field_name 'something'")
   [2]
 
   $ cat >parse0.src <<EOF
@@ -88,5 +88,5 @@
   > end
   > EOF
   $ dune exec sylic typing parse0.src
-  Fatal error: exception Syli_typing__Env.Type_error("cannot infer record type for fields {name, age}: no matching record type")
+  Fatal error: exception Syli_typing__Env.Type_error("type mismatch: double vs int64")
   [2]

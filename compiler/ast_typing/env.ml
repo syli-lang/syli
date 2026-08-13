@@ -19,8 +19,10 @@ module TyEnv = struct
   let bindings env = M.bindings env
 end
 
-type ty_record_info = { ty_decl : ty_decl; key : string }
-(** the key here is the concatenation of the field names *)
+type ty_record_info = {
+  record_fields : record_field_decl list;
+  ty_decl : ty_decl;
+}
 
 type infer_ctx = {
   env : TyEnv.t;
@@ -41,31 +43,44 @@ let empty_ctx =
     ty_name_env = StringMap.empty;
   }
 
-let lookup_record_candidates (ctx : infer_ctx) (key : string) :
-    ty_record_info list =
-  Option.value (StringMap.find_opt key ctx.record_env) ~default:[]
-
-let record_key_of_field_names (field_names : string list) : string =
-  field_names |> List.sort_uniq String.compare |> String.concat "|"
-
-let record_key_of_record_decl_fields (fields : record_field_decl list) : string
-    =
-  record_key_of_field_names
-    (List.map (fun (f : record_field_decl) -> f.field_name.name) fields)
-
 let register_ty_decl (ctx : infer_ctx) (td : ty_decl) : infer_ctx =
   match td.def with
   | TTydef_Record fields ->
-      let key = record_key_of_record_decl_fields fields in
-      let info = { ty_decl = td; key } in
-      let existing = lookup_record_candidates ctx key in
-      let ty_name_env = StringMap.add td.name.name td ctx.ty_name_env in
+      let record_env =
+        List.fold_left
+          (fun record_env (field : record_field_decl) ->
+            match StringMap.find_opt field.field_name.name record_env with
+            | Some ty_record_infos ->
+                StringMap.add field.field_name.name
+                  ({ record_fields = fields; ty_decl = td } :: ty_record_infos)
+                  record_env
+            | None ->
+                StringMap.add field.field_name.name
+                  [ { record_fields = fields; ty_decl = td } ]
+                  record_env)
+          ctx.record_env fields
+      in
       {
         ctx with
-        record_env = StringMap.add key (info :: existing) ctx.record_env;
-        ty_name_env;
+        record_env;
+        ty_name_env = StringMap.add td.name.name td ctx.ty_name_env;
       }
   | TTydef_Alias _ | TTydef_Variant _ | TTydef_Abstract -> ctx
 
-let lookup_ty_decl_by_name (ctx : infer_ctx) (name : string) : ty_decl option =
-  StringMap.find_opt name ctx.ty_name_env
+let find_record_by_field_names ctx field_names : ty_record_info option =
+  match field_names with
+  | field_name :: _ -> (
+      match StringMap.find_opt field_name ctx.record_env with
+      | Some ty_record_infos ->
+          List.find_opt
+            (fun record_info ->
+              List.for_all
+                (fun field_name ->
+                  List.exists
+                    (fun (record_field : record_field_decl) ->
+                      field_name = record_field.field_name.name)
+                    record_info.record_fields)
+                field_names)
+            ty_record_infos
+      | None -> None)
+  | [] -> None

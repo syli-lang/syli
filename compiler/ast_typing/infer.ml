@@ -4,7 +4,6 @@ open Env
 open Infer_helpers
 open Parse_ty
 open Ty
-open Record
 module Parsing_ast = Syli_parsing.Ast
 
 let apply_expr_ty (ctx : infer_ctx) (e : expr) : expr =
@@ -16,9 +15,15 @@ let apply_param_ty (ctx : infer_ctx) (p : param) : param =
 let unify_record_expr_fields_with_decl (ctx : infer_ctx)
     (decl_fields : record_field_decl list) (fields : record_field list) :
     infer_ctx =
+  let find_decl_field name =
+    List.find_opt
+      (fun (decl_field : record_field_decl) ->
+        decl_field.field_name.name = name)
+      decl_fields
+  in
   List.fold_left
     (fun ctx (f : record_field) ->
-      match find_record_field_decl_by_name decl_fields f.field_name.name with
+      match find_decl_field f.field_name.name with
       | None ->
           raise
             (Type_error
@@ -203,25 +208,18 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
               } ))
           ctx fields
       in
-      let key = record_key_of_expr_fields fields in
-      let candidates = lookup_record_candidates ctx key in
-      let candidates = filter_record_candidates candidates fields in
+      let field_names = List.map (fun field -> field.field_name.name) fields in
       let ctx, ty =
-        match candidates with
-        | [ record ] -> (
-            match record.ty_decl.def with
-            | TTydef_Record decl_fields ->
-                let ctx =
-                  unify_record_expr_fields_with_decl ctx decl_fields fields
-                in
-                ( ctx,
-                  mk_ty (TTy_Defined { name = record.ty_decl.name; args = [] })
-                )
-            | TTydef_Alias _ | TTydef_Variant _ | TTydef_Abstract ->
-                raise
-                  (Type_error
-                     "internal error: non-record candidate in record typing"))
-        | [] ->
+        match find_record_by_field_names ctx field_names with
+        | Some record_info ->
+            let ctx =
+              unify_record_expr_fields_with_decl ctx record_info.record_fields
+                fields
+            in
+            ( ctx,
+              mk_ty (TTy_Defined { name = record_info.ty_decl.name; args = [] })
+            )
+        | None ->
             raise
               (Type_error
                  (Printf.sprintf
@@ -231,17 +229,6 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
                        (List.map
                           (fun (f : record_field) -> f.field_name.name)
                           fields))))
-        | records ->
-            raise
-              (Type_error
-                 (Printf.sprintf
-                    "ambiguous record literal for fields {%s}: %d candidate \
-                     types"
-                    (String.concat ", "
-                       (List.map
-                          (fun (f : record_field) -> f.field_name.name)
-                          fields))
-                    (List.length records)))
       in
       (ctx, { id = e.id; expr_desc = TExp_Record fields; loc; ty })
   | Parsing_ast.Exp_Collection c ->
@@ -682,15 +669,33 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
         } )
   | Parsing_ast.Exp_Field { record; field_name } ->
       let ctx, record = infer_expr ctx record in
-      let ty = apply_ty ctx record.ty in
-      let idx, field_ty =
-        match field_index_of_record_ty ctx ty field_name.name with
-        | Some (idx, field_ty) -> (idx, field_ty)
+      let ctx, idx, field_ty =
+        match find_record_by_field_names ctx [ field_name.name ] with
+        | Some ty_record_info -> (
+            let ctx =
+              unify_into ctx record.ty
+                (mk_ty
+                   (TTy_Defined
+                      { name = ty_record_info.ty_decl.name; args = [] }))
+            in
+            match
+              List.find_mapi
+                (fun idx (field : record_field_decl) ->
+                  if field.field_name.name = field_name.name then
+                    Some (idx, field.field_ty)
+                  else None)
+                ty_record_info.record_fields
+            with
+            | Some (idx, field_ty) -> (ctx, idx, field_ty)
+            | None ->
+                raise
+                  (Type_error
+                     (Printf.sprintf "field '%s' is not found" field_name.name))
+            )
         | None ->
             raise
               (Type_error
-                 (Printf.sprintf "type %s has no field '%s'" (string_of_ty ty)
-                    field_name.name))
+                 (Printf.sprintf "no record has field_name '%s'" field_name.name))
       in
       ( ctx,
         {
