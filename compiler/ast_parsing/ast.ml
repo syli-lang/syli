@@ -369,7 +369,7 @@ and module_structure = {
       module Nested = sig
         val triple: int -> int
       end
-    
+
     let double = lambda x -> x * 2
     module Nested = struct
       let triple = lambda x -> x * 3
