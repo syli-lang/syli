@@ -1,12 +1,11 @@
 open Syli_core.Core_ast
 open Syli_core.Closure_analysis
 
-let dummy_loc = { filename = "test"; span = { start_pos = 0; end_pos = 0 } }
 let unit_ty = CTy_Constant CTy_Unit
 
 let mk_expr ?(ty_desc = unit_ty) id node : expr =
   let ty = { ty_desc } in
-  { id; node; loc = dummy_loc; ty }
+  { id; node; ty }
 
 let mk_structure_item id structure_item_desc : structure_item =
   { id; structure_item_desc }
@@ -14,12 +13,12 @@ let mk_structure_item id structure_item_desc : structure_item =
 let mk_toplevel_let id rec_flag name value : structure_item =
   mk_structure_item id
     (CStr_Let
-       { rec_flag; name = { fullname = name; id = 0; loc = dummy_loc }; value })
+       { rec_flag; name = { name; fullname = name; path = []; id = 0 }; value })
 
-let ident ?(id = 0) name = { fullname = name; id; loc = dummy_loc }
+let ident ?(id = 0) name = { name; fullname = name; path = []; id }
 
 let mk_ident_expr eid name vid =
-  mk_expr eid (CExp_Ident { fullname = name; id = vid; loc = dummy_loc })
+  mk_expr eid (CExp_Ident { name; fullname = name; path = []; id = vid })
 
 let mk_const_unit id = mk_expr id (CExp_Constant CConst_Unit)
 
@@ -29,7 +28,7 @@ let mk_lambda ?(ty_desc = unit_ty) params body : lambda =
 let mk_prog structure_items =
   {
     id = 0;
-    name = { fullname = "Test"; id = 0; loc = dummy_loc };
+    name = { name = "Test"; fullname = "Test"; path = []; id = 0 };
     structure_items;
     signature_items = [];
     has_main_function = false;

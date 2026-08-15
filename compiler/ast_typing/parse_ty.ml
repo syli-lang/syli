@@ -24,7 +24,7 @@ let loc_of_parsing (loc : Syli_parsing.Ast.location) : location =
   { start_pos = loc.start_pos; end_pos = loc.end_pos; filename = loc.filename }
 
 let ident_of_parsing (id : Syli_parsing.Ast.ident) : ident =
-  { name = id.name; id = id.id; fullname = []; loc = loc_of_parsing id.loc }
+  { name = id.name; id = id.id; path = []; loc = loc_of_parsing id.loc }
 
 let mk_ty ty_desc = { ty_desc }
 
@@ -131,9 +131,25 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
               let ctx, arg =
                 match c.arg with
                 | None -> (ctx, None)
-                | Some t ->
+                | Some (Syli_parsing.Ast.Constr_ty t) ->
                     let ctx, t = ty_of_parsing ctx t in
-                    (ctx, Some t)
+                    (ctx, Some (Constr_ty t))
+                | Some (Syli_parsing.Ast.Constr_record fields) ->
+                    let ctx, fields =
+                      List.fold_left_map
+                        (fun ctx (f : Syli_parsing.Ast.record_field_decl) ->
+                          let ctx, field_ty = ty_of_parsing ctx f.field_ty in
+                          ( ctx,
+                            {
+                              id = f.id;
+                              field_name = ident_of_parsing f.field_name;
+                              field_ty;
+                              field_mut = field_mut_of_parsing f.field_mut;
+                              loc = loc_of_parsing f.loc;
+                            } ))
+                        ctx fields
+                    in
+                    (ctx, Some (Constr_record fields))
               in
               ( ctx,
                 {
@@ -153,8 +169,7 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
       name = ident_of_parsing td.name;
       params =
         List.map
-          (fun p ->
-            { name = p; id = Hashtbl.hash (td.id, p); fullname = []; loc })
+          (fun p -> { name = p; id = Hashtbl.hash (td.id, p); path = []; loc })
           td.params;
       def;
       annotations =

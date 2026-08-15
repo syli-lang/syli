@@ -28,30 +28,21 @@ let rec transform_pattern (t : transformer) (p : pattern) : pattern =
   let pattern_desc =
     match p.pattern_desc with
     | TPat_Unit | TPat_BoolLit _ | TPat_IntLit _ | TPat_CharLit _
-    | TPat_FloatLit _ | TPat_StringLit _ | TPat_Ident _ | TPat_Wildcard ->
+    | TPat_FloatLit _ | TPat_StringLit _ | TPat_Ident _ | TPat_Any ->
         p.pattern_desc
-    | TPat_Tuple ps -> TPat_Tuple (List.map (t.pattern t) ps)
-    | TPat_Record fields ->
+    | TPat_Tuple { elements } ->
+        TPat_Tuple { elements = List.map (t.pattern t) elements }
+    | TPat_Record { fields } ->
         TPat_Record
-          (List.map
-             (fun (name, p_opt) -> (name, Option.map (t.pattern t) p_opt))
-             fields)
-    | TPat_Constructor (name, p_opt) ->
-        TPat_Constructor (name, Option.map (t.pattern t) p_opt)
-    | TPat_Collection (TPat_List ps, ty_opt) ->
-        TPat_Collection
-          (TPat_List (List.map (t.pattern t) ps), Option.map (t.ty t) ty_opt)
-    | TPat_Collection (TPat_Array ps, ty_opt) ->
-        TPat_Collection
-          (TPat_Array (List.map (t.pattern t) ps), Option.map (t.ty t) ty_opt)
-    | TPat_Collection (TPat_Set ps, ty_opt) ->
-        TPat_Collection
-          (TPat_Set (List.map (t.pattern t) ps), Option.map (t.ty t) ty_opt)
-    | TPat_Collection (TPat_Map kvs, ty_opt) ->
-        TPat_Collection
-          ( TPat_Map
-              (List.map (fun (k, v) -> (t.pattern t k, t.pattern t v)) kvs),
-            Option.map (t.ty t) ty_opt )
+          {
+            fields =
+              List.map
+                (fun (f : pattern_record_field) ->
+                  { f with pattern = Option.map (t.pattern t) f.pattern })
+                fields;
+          }
+    | TPat_Constructor { ident; pattern } ->
+        TPat_Constructor { ident; pattern = Option.map (t.pattern t) pattern }
   in
   { p with pattern_desc; ty = t.ty t p.ty }
 
@@ -82,40 +73,32 @@ let rec transform_expr (t : transformer) (e : expr) : expr =
   let expr_desc =
     match e.expr_desc with
     | TExp_Constant _ | TExp_Ident _ | TExp_Continue -> e.expr_desc
-    | TExp_Tuple es -> TExp_Tuple (List.map (t.expr t) es)
-    | TExp_Record fields ->
+    | TExp_Tuple { elements } ->
+        TExp_Tuple { elements = List.map (t.expr t) elements }
+    | TExp_Record { fields } ->
         TExp_Record
-          (List.map
-             (fun f -> { f with field_value = t.expr t f.field_value })
-             fields)
-    | TExp_Collection (TCol_List es) ->
-        TExp_Collection (TCol_List (List.map (t.expr t) es))
-    | TExp_Collection (TCol_Array es) ->
-        TExp_Collection (TCol_Array (List.map (t.expr t) es))
-    | TExp_Collection (TCol_Set es) ->
-        TExp_Collection (TCol_Set (List.map (t.expr t) es))
-    | TExp_Collection (TCol_Map kvs) ->
-        TExp_Collection
-          (TCol_Map (List.map (fun (k, v) -> (t.expr t k, t.expr t v)) kvs))
+          {
+            fields =
+              List.map
+                (fun f -> { f with field_value = t.expr t f.field_value })
+                fields;
+          }
     | TExp_VariantConstructor { name; args } ->
         TExp_VariantConstructor { name; args = Option.map (t.expr t) args }
-    | TExp_ArrayCreate { lambda_init; element_ty; size } ->
+    | TExp_ArrayCreate { element_ty; size } ->
         TExp_ArrayCreate
-          {
-            lambda_init = transform_lambda t lambda_init;
-            element_ty = t.ty t element_ty;
-            size = t.expr t size;
-          }
-    | TExp_ArrayLength e1 -> TExp_ArrayLength (t.expr t e1)
+          { element_ty = t.ty t element_ty; size = t.expr t size }
+    | TExp_ArrayLength { arr } -> TExp_ArrayLength { arr = t.expr t arr }
     | TExp_ArrayGet { arr; idx } ->
         TExp_ArrayGet { arr = t.expr t arr; idx = t.expr t idx }
     | TExp_ArraySet { arr; idx; value } ->
         TExp_ArraySet
           { arr = t.expr t arr; idx = t.expr t idx; value = t.expr t value }
-    | TExp_UnOp (op, e1) -> TExp_UnOp (op, t.expr t e1)
-    | TExp_BinOp (op, l, r) -> TExp_BinOp (op, t.expr t l, t.expr t r)
-    | TExp_Ref e1 -> TExp_Ref (t.expr t e1)
-    | TExp_Deref e1 -> TExp_Deref (t.expr t e1)
+    | TExp_UnOp { op; value } -> TExp_UnOp { op; value = t.expr t value }
+    | TExp_BinOp { op; lvalue; rvalue } ->
+        TExp_BinOp { op; lvalue = t.expr t lvalue; rvalue = t.expr t rvalue }
+    | TExp_Ref { value } -> TExp_Ref { value = t.expr t value }
+    | TExp_Deref { value } -> TExp_Deref { value = t.expr t value }
     | TExp_Lambda lam -> TExp_Lambda (transform_lambda t lam)
     | TExp_Apply { closure_fun; args } ->
         TExp_Apply
@@ -144,12 +127,15 @@ let rec transform_expr (t : transformer) (e : expr) : expr =
             iterable = t.expr t iterable;
             body = t.expr t body;
           }
-    | TExp_Loop body -> TExp_Loop (t.expr t body)
-    | TExp_Break e_opt -> TExp_Break (Option.map (t.expr t) e_opt)
-    | TExp_Return e_opt -> TExp_Return (Option.map (t.expr t) e_opt)
-    | TExp_Seq es -> TExp_Seq (List.map (t.expr t) es)
-    | TExp_Match (scrutinee, cases) ->
-        TExp_Match (t.expr t scrutinee, List.map (t.pattern_case t) cases)
+    | TExp_Loop { expr } -> TExp_Loop { expr = t.expr t expr }
+    | TExp_Break { expr_opt } ->
+        TExp_Break { expr_opt = Option.map (t.expr t) expr_opt }
+    | TExp_Return { expr_opt } ->
+        TExp_Return { expr_opt = Option.map (t.expr t) expr_opt }
+    | TExp_Seq { exprs } -> TExp_Seq { exprs = List.map (t.expr t) exprs }
+    | TExp_Match { expr; cases } ->
+        TExp_Match
+          { expr = t.expr t expr; cases = List.map (t.pattern_case t) cases }
     | TExp_Field { record; field_name; idx } ->
         TExp_Field { record = t.expr t record; field_name; idx }
     | TExp_Index { collection; index } ->
@@ -161,7 +147,7 @@ let transform_pattern_case (t : transformer) (c : pattern_case) : pattern_case =
   {
     c with
     pattern = t.pattern t c.pattern;
-    when_opt = Option.map (t.expr t) c.when_opt;
+    when_condition = Option.map (t.expr t) c.when_condition;
     body = t.expr t c.body;
     ty = t.ty t c.ty;
   }
@@ -175,7 +161,23 @@ let transform_ty_decl (t : transformer) (td : ty_decl) : ty_decl =
           (List.map (fun f -> { f with field_ty = t.ty t f.field_ty }) fields)
     | TTydef_Variant ctors ->
         TTydef_Variant
-          (List.map (fun c -> { c with arg = Option.map (t.ty t) c.arg }) ctors)
+          (List.map
+             (fun c ->
+               {
+                 c with
+                 arg =
+                   Option.map
+                     (function
+                       | Constr_ty ty -> Constr_ty (t.ty t ty)
+                       | Constr_record fields ->
+                           Constr_record
+                             (List.map
+                                (fun f ->
+                                  { f with field_ty = t.ty t f.field_ty })
+                                fields))
+                     c.arg;
+               })
+             ctors)
     | TTydef_Abstract -> TTydef_Abstract
   in
   { td with def }

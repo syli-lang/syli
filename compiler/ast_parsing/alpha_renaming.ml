@@ -26,88 +26,57 @@ let rec bind_pattern (env : RenameEnv.t) (p : pattern) : RenameEnv.t * pattern =
   | Pat_Ident x ->
       let env', x' = RenameEnv.extend x.name env in
       (env', { p with node = Pat_Ident { x with name = x' } })
-  | Pat_Tuple ps ->
-      let env', ps' =
-        List.fold_left_map (fun e p' -> bind_pattern e p') env ps
+  | Pat_Tuple { elements } ->
+      let env', elements' =
+        List.fold_left_map (fun e p' -> bind_pattern e p') env elements
       in
-      (env', { p with node = Pat_Tuple ps' })
-  | Pat_Record fields ->
+      (env', { p with node = Pat_Tuple { elements = elements' } })
+  | Pat_Record { fields } ->
       let env', fields' =
         List.fold_left_map
-          (fun e (name, p_opt) ->
-            match p_opt with
-            | None -> (e, (name, None))
+          (fun e (f : pattern_record_field) ->
+            match f.pattern with
+            | None -> (e, f)
             | Some p' ->
                 let e', p'' = bind_pattern e p' in
-                (e', (name, Some p'')))
+                (e', { f with pattern = Some p'' }))
           env fields
       in
-      (env', { p with node = Pat_Record fields' })
-  | Pat_Constructor (name, p_opt) ->
-      let env', p_opt' =
-        match p_opt with
+      (env', { p with node = Pat_Record { fields = fields' } })
+  | Pat_Constructor { name; pattern } ->
+      let env', pattern' =
+        match pattern with
         | None -> (env, None)
         | Some p' ->
             let e', p'' = bind_pattern env p' in
             (e', Some p'')
       in
-      (env', { p with node = Pat_Constructor (name, p_opt') })
-  | Pat_Collection (Pat_List ps, ty_opt) ->
-      let env', ps' =
-        List.fold_left_map (fun e p' -> bind_pattern e p') env ps
-      in
-      (env', { p with node = Pat_Collection (Pat_List ps', ty_opt) })
-  | Pat_Collection (Pat_Array ps, ty_opt) ->
-      let env', ps' =
-        List.fold_left_map (fun e p' -> bind_pattern e p') env ps
-      in
-      (env', { p with node = Pat_Collection (Pat_Array ps', ty_opt) })
-  | Pat_Collection (Pat_Set ps, ty_opt) ->
-      let env', ps' =
-        List.fold_left_map (fun e p' -> bind_pattern e p') env ps
-      in
-      (env', { p with node = Pat_Collection (Pat_Set ps', ty_opt) })
-  | Pat_Collection (Pat_Map kvs, ty_opt) ->
-      let env', kvs' =
-        List.fold_left_map
-          (fun e (k, v) ->
-            let e', k' = bind_pattern e k in
-            let e'', v' = bind_pattern e' v in
-            (e'', (k', v')))
-          env kvs
-      in
-      (env', { p with node = Pat_Collection (Pat_Map kvs', ty_opt) })
+      (env', { p with node = Pat_Constructor { name; pattern = pattern' } })
   | Pat_Unit | Pat_BoolLit _ | Pat_IntLit _ | Pat_CharLit _ | Pat_FloatLit _
-  | Pat_StringLit _ | Pat_Wildcard ->
+  | Pat_StringLit _ | Pat_Any ->
       (env, p)
 
 let rec rename_pattern_uses (env : RenameEnv.t) (p : pattern) : pattern =
   let node =
     match p.node with
     | Pat_Ident x -> Pat_Ident { x with name = RenameEnv.lookup env x.name }
-    | Pat_Tuple ps -> Pat_Tuple (List.map (rename_pattern_uses env) ps)
-    | Pat_Record fields ->
+    | Pat_Tuple { elements } ->
+        Pat_Tuple { elements = List.map (rename_pattern_uses env) elements }
+    | Pat_Record { fields } ->
         Pat_Record
-          (List.map
-             (fun (n, p_opt) -> (n, Option.map (rename_pattern_uses env) p_opt))
-             fields)
-    | Pat_Constructor (name, p_opt) ->
-        Pat_Constructor (name, Option.map (rename_pattern_uses env) p_opt)
-    | Pat_Collection (Pat_List ps, ty_opt) ->
-        Pat_Collection (Pat_List (List.map (rename_pattern_uses env) ps), ty_opt)
-    | Pat_Collection (Pat_Array ps, ty_opt) ->
-        Pat_Collection
-          (Pat_Array (List.map (rename_pattern_uses env) ps), ty_opt)
-    | Pat_Collection (Pat_Set ps, ty_opt) ->
-        Pat_Collection (Pat_Set (List.map (rename_pattern_uses env) ps), ty_opt)
-    | Pat_Collection (Pat_Map kvs, ty_opt) ->
-        Pat_Collection
-          ( Pat_Map
-              (List.map
-                 (fun (k, v) ->
-                   (rename_pattern_uses env k, rename_pattern_uses env v))
-                 kvs),
-            ty_opt )
+          {
+            fields =
+              List.map
+                (fun (f : pattern_record_field) ->
+                  {
+                    f with
+                    pattern = Option.map (rename_pattern_uses env) f.pattern;
+                  })
+                fields;
+          }
+    | Pat_Constructor { name; pattern } ->
+        Pat_Constructor
+          { name; pattern = Option.map (rename_pattern_uses env) pattern }
     | _ -> p.node
   in
   { p with node }
@@ -154,34 +123,44 @@ let rename_transformer : RenameEnv.t transformer =
                   Exp_ForIn
                     { iter_var = iter_var'; iterable = iterable'; body = body' };
               } )
-        | Exp_Match (scrutinee, cases) ->
+        | Exp_Match { expr = scrutinee; cases } ->
             let _, scrutinee' = t.expr t env scrutinee in
             let cases' =
               List.map
                 (fun (c : pattern_case) ->
                   let env', pattern' = bind_pattern env c.pattern in
-                  let when_opt' =
-                    Option.map (fun w -> snd (t.expr t env' w)) c.when_opt
+                  let when_condition' =
+                    Option.map (fun w -> snd (t.expr t env' w)) c.when_condition
                   in
                   let _, body' = t.expr t env' c.body in
                   {
                     c with
                     pattern = pattern';
-                    when_opt = when_opt';
+                    when_condition = when_condition';
                     body = body';
                   })
                 cases
             in
-            (env, { e with expr_desc = Exp_Match (scrutinee', cases') })
+            ( env,
+              {
+                e with
+                expr_desc = Exp_Match { expr = scrutinee'; cases = cases' };
+              } )
         | _ -> default_expr t env e);
     pattern_case =
       (fun t env c ->
         let env', pattern' = bind_pattern env c.pattern in
-        let when_opt' =
-          Option.map (fun w -> snd (t.expr t env' w)) c.when_opt
+        let when_condition' =
+          Option.map (fun w -> snd (t.expr t env' w)) c.when_condition
         in
         let _, body' = t.expr t env' c.body in
-        (env, { c with pattern = pattern'; when_opt = when_opt'; body = body' }));
+        ( env,
+          {
+            c with
+            pattern = pattern';
+            when_condition = when_condition';
+            body = body';
+          } ));
     structure_item =
       (fun t env s ->
         match s.structure_item_desc with

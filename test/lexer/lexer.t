@@ -6,7 +6,7 @@
   $ dune exec sylic lex parse0.src
   LET
   IDENT(x)
-  EQ
+  =
   REF
   INT(10)
   NEWLINE
@@ -20,7 +20,7 @@
   $ dune exec sylic lex parse0.src
   LET
   IDENT(x)
-  EQ
+  =
   INT(10)
   NEWLINE
   EOF
@@ -37,32 +37,32 @@
   $ dune exec sylic lex parse0.src
   LET
   IDENT(x)
-  EQ
-  LPAREN
+  =
+  (
   INT(10)
-  COMMA
+  ,
   INT(20)
-  RPAREN
+  )
   NEWLINE
   LET
   IDENT(y)
-  EQ
-  LPAREN
+  =
+  (
   INT(20)
-  COMMA
+  ,
   INT(30)
-  COMMA
+  ,
   INT(40)
-  RPAREN
+  )
   NEWLINE
   LET
   IDENT(z)
-  EQ
-  LPAREN
+  =
+  (
   IDENT(x)
-  COMMA
+  ,
   IDENT(y)
-  RPAREN
+  )
   NEWLINE
   EOF
 
@@ -77,7 +77,7 @@
   print_int 3
   $ dune exec sylic lex parse0.src
   LOCAL
-  COLON
+  :
   NEWLINE
   INDENT
   IDENT(print_int)
@@ -107,14 +107,14 @@
   $ dune exec sylic lex parse0.src
   LET
   IDENT(x)
-  EQ
+  =
   INT(10)
   NEWLINE
   IF
   IDENT(x)
-  EQEQ
+  ==
   INT(10)
-  COLON
+  :
   NEWLINE
   INDENT
   IDENT(print_int)
@@ -122,7 +122,7 @@
   NEWLINE
   DEDENT
   ELSE
-  COLON
+  :
   NEWLINE
   INDENT
   IDENT(print_int)
@@ -152,20 +152,20 @@
   print_int 2
   $ dune exec sylic lex parse0.src
   LOCAL
-  COLON
+  :
   NEWLINE
   INDENT
   LOCAL
-  COLON
+  :
   NEWLINE
   INDENT
   LET
   IDENT(x)
-  EQ
+  =
   INT(10)
   NEWLINE
   IDENT(x)
-  PLUS
+  +
   INT(5)
   NEWLINE
   DEDENT
@@ -199,20 +199,20 @@
   $ dune exec sylic lex parse0.src
   LET
   IDENT(x)
-  EQ
+  =
   NEWLINE
   INDENT
   LOCAL
-  COLON
+  :
   NEWLINE
   INDENT
   LET
   IDENT(x)
-  EQ
+  =
   INT(10)
   NEWLINE
   IDENT(x)
-  PLUS
+  +
   INT(5)
   NEWLINE
   DEDENT
@@ -242,16 +242,16 @@
   $ dune exec sylic lex parse0.src
   LET
   IDENT(x)
-  EQ
+  =
   NEWLINE
   INDENT
   LET
   IDENT(x)
-  EQ
+  =
   INT(10)
   NEWLINE
   IDENT(x)
-  PLUS
+  +
   INT(5)
   NEWLINE
   DEDENT
@@ -279,20 +279,20 @@
   LET
   IDENT(mut)
   IDENT(x)
-  EQ
+  =
   INT(0)
   NEWLINE
   WHILE
   IDENT(x)
-  LT
+  <
   INT(10)
-  COLON
+  :
   NEWLINE
   INDENT
   IDENT(x)
-  EQ
+  =
   IDENT(x)
-  PLUS
+  +
   INT(1)
   NEWLINE
   DEDENT
@@ -319,20 +319,20 @@
   $ dune exec sylic lex parse0.src
   LET
   IDENT(x)
-  EQ
+  =
   NEWLINE
   INDENT
   LET
   IDENT(x)
-  EQ
+  =
   INT(10)
-  SEMI
+  ;
   IDENT(x)
-  PLUS
+  +
   INT(5)
   NEWLINE
   IDENT(x)
-  PLUS
+  +
   INT(5)
   NEWLINE
   DEDENT
@@ -359,17 +359,17 @@
   IDENT(add)
   IDENT(a)
   IDENT(b)
-  EQ
+  =
   NEWLINE
   INDENT
   LET
   IDENT(c)
-  EQ
+  =
   INT(0)
   NEWLINE
   INDENT
   IDENT(a)
-  PLUS
+  +
   IDENT(b)
   NEWLINE
   DEDENT
@@ -390,7 +390,7 @@
   $ dune exec sylic lex parse0.src
   FN
   IDENT(add)
-  COLON
+  :
   NEWLINE
   INDENT
   IDENT(print_int)
@@ -416,19 +416,19 @@
   FN
   IDENT(add)
   IDENT(a)
-  EQ
+  =
   NEWLINE
   INDENT
   IDENT(a)
-  PLUS
+  +
   INT(5)
   NEWLINE
   DEDENT
   IDENT(print_int)
-  LPAREN
+  (
   IDENT(add)
   INT(10)
-  RPAREN
+  )
   NEWLINE
   END
   NEWLINE
@@ -446,33 +446,107 @@ String escape sequences:
   $ dune exec sylic lex test_esc.src
   LET
   IDENT(s)
-  EQ
+  =
   STRING(hello
   world)
   NEWLINE
   LET
   IDENT(t)
-  EQ
+  =
   STRING(tab	here)
   NEWLINE
   LET
   IDENT(u)
-  EQ
+  =
   STRING(quot"here)
   NEWLINE
   LET
   IDENT(v)
-  EQ
+  =
   STRING(back\slash)
   NEWLINE
   LET
   IDENT(w)
-  EQ
+  =
   STRING(AB)
   NEWLINE
   LET
   IDENT(e)
-  EQ
+  =
   STRING()
   NEWLINE
+  EOF
+
+
+type variant
+  $ cat >test_variant.sy <<'EOF'
+  > type option = None | Some of int64
+  > EOF
+  $ dune exec sylic lex test_variant.sy
+  TYPE
+  IDENT(option)
+  =
+  UIDENT(None)
+  |
+  UIDENT(Some)
+  OF
+  INT64
+  NEWLINE
+  EOF
+
+
+pattern match
+  $ cat >test_pattern.sy <<'EOF'
+  > let m =
+  >   match x with
+  >     None -> 2
+  >     Some _ -> 3
+  > EOF
+  $ dune exec sylic lex test_pattern.sy
+  LET
+  IDENT(m)
+  =
+  NEWLINE
+  INDENT
+  MATCH
+  IDENT(x)
+  WITH
+  NEWLINE
+  INDENT
+  UIDENT(None)
+  ->
+  INT(2)
+  NEWLINE
+  UIDENT(Some)
+  IDENT(_)
+  ->
+  INT(3)
+  NEWLINE
+  DEDENT
+  DEDENT
+  EOF
+
+pattern match
+  $ cat >test_pattern.sy <<'EOF'
+  > let m =
+  >   match x with None -> 2 | Some -> 30
+  > EOF
+  $ dune exec sylic lex test_pattern.sy
+  LET
+  IDENT(m)
+  =
+  NEWLINE
+  INDENT
+  MATCH
+  IDENT(x)
+  WITH
+  UIDENT(None)
+  ->
+  INT(2)
+  |
+  UIDENT(Some)
+  ->
+  INT(30)
+  NEWLINE
+  DEDENT
   EOF

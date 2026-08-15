@@ -15,10 +15,10 @@
 %token WHILE LOOP DO END LOCAL CONTINUE BREAK LAMBDA MATCH WITH TYPE OF MUTABLE REF
 %token LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE LBRACKET_BAR RBRACKET_BAR
 %token COMMA SEMI COLON COLON_EQ NEWLINE DOT ARROW
-%token EQ PLUS_EQ MINUS_EQ PLUS MINUS TIMES DIV MOD
-%token LT GT EQEQ NEQ LEQ GEQ AND
-%token OR NOT BITAND BITOR BITXOR LSHIFT RSHIFT BITNOT BANG UNDERSCORE
-%token INDENT DEDENT EOF PIPE
+%token EQ PLUS_EQ MINUS_EQ PLUS MINUS STAR PERCENT SLASH
+%token LT GT EQEQ BANGEQ LEQ GEQ AMPANDAND NOT
+%token BARBAR AMPAND BAR CARET LSHIFT RSHIFT TILDE BANG UNDERSCORE BAR_3TIMES
+%token INDENT DEDENT EOF
 %token MODULE
 %token <int> SPACE
 
@@ -33,15 +33,14 @@
 %type <Ast.ty_decl> type_def
 %type <Ast.variant_constructor_decl> ty_constructor_decl
 
-%nonassoc LT GT LEQ GEQ EQEQ NEQ
-%left OR
-%left AND
-%left BITOR
-%left BITXOR
-%left BITAND
+%nonassoc LT GT LEQ GEQ EQEQ
+%left AMPANDAND
+%left BAR
+%left CARET
+%left AMPAND
 %left LSHIFT RSHIFT
 %left PLUS MINUS
-%left TIMES DIV MOD
+%left STAR SLASH PERCENT
 %right ARROW
 
 %%
@@ -185,7 +184,7 @@ elseif_chain:
       {
         Some
           (mk_expr $startpos $endpos
-             (Exp_If { cond = expr; then_branch = cond_seq; else_branch = else_chain }))
+             (Exp_If { cond = expr; then_branch = cond_seq; else_branch = else_chain}))
       }
   | ELSE cond_sequence
       { Some $2 }
@@ -282,11 +281,12 @@ ty_arrow:
 
 ty_constructor_decls:
   | ty_constructor_decl                           { [$1] }
-  | ty_constructor_decl PIPE ty_constructor_decls { $1 :: $3 }
+  | ty_constructor_decl BAR ty_constructor_decls { $1 :: $3 }
 
 ty_constructor_decl:
   | name = uident          { mk_constructor_decl $startpos $endpos name None }
-  | name = uident OF ty    { mk_constructor_decl $startpos $endpos name (Some $3) }
+  | name = uident OF ty    { mk_constructor_decl $startpos $endpos name (Some ( Constr_ty $3)) }
+  | name = uident OF LBRACE record_ty = record_field_ty_list RBRACE { mk_constructor_decl $startpos $endpos name (Some (Constr_record record_ty)) }
 
 type_def:
   | TYPE name = ident EQ constructors = ty_constructor_decls
@@ -323,34 +323,37 @@ uident:
   | UIDENT { mk_ident $startpos $endpos $1 }
 
 pattern_desc:
-  | UNDERSCORE                          { Pat_Wildcard }
+  | UNDERSCORE                          { Pat_Any }
   | INT                                 { Pat_IntLit $1 }
   | STRING                              { Pat_StringLit $1 }
   | CHAR                                { Pat_CharLit $1 }
   | FLOAT                               { Pat_FloatLit $1 }
   | BOOL_VAL                            { Pat_BoolLit $1 }
-  | name = ident                        { Pat_Ident name }
   | LPAREN RPAREN                       { Pat_Unit }
-  | LPAREN pattern_list RPAREN          { Pat_Tuple $2 }
-  | LBRACE record_pattern_list RBRACE   { Pat_Record $2 }
-    | name = uident LPAREN pattern_desc RPAREN
-      { Pat_Constructor (name, Some (mk_pattern $startpos $endpos $3)) }
-    | name = uident                       { Pat_Constructor (name, None) }
+  | LPAREN pattern_tuple RPAREN
+      { Pat_Tuple { elements = $2} }
+  | LBRACE record_pattern_list RBRACE
+      { Pat_Record { fields = $2} }
+  | name = uident pattern_desc
+    { Pat_Constructor { name; pattern = Some (mk_pattern $startpos $endpos $2)} }
+  | name = uident
+    { Pat_Constructor { name; pattern = None} }
+  | name = ident                        { Pat_Ident name }
 
 pattern:
   | pattern_desc { mk_pattern $startpos $endpos $1 }
 
-pattern_list:
+pattern_tuple:
   | pattern                     { [$1] }
-  | pattern COMMA pattern_list  { $1 :: $3 }
+  | pattern COMMA pattern_tuple  { $1 :: $3 }
 
 record_pattern_list:
   | field_pattern_desc                          { [$1] }
   | field_pattern_desc SEMI record_pattern_list { $1 :: $3 }
 
 field_pattern_desc:
-  | field_name = ident { (field_name, None) }
-  | field_name = ident EQ pattern { (field_name, Some $3) }
+  | field_name = ident { { name = field_name; pattern = None; loc = mk_loc $startpos $endpos } }
+  | field_name = ident EQ pattern { { name = field_name; pattern = Some $3; loc = mk_loc $startpos $endpos } }
 
 ident_atomic:
   | id = ident
@@ -368,8 +371,11 @@ pattern_case:
       { mk_pattern_case $startpos $endpos $1 $3 None }
 
 match_pattern:
-  | pattern_case                { [$1] }
-  | pattern_case match_pattern  { $1 :: $2 }
+  | {[]}
+  | pattern_case match_pattern              { $1::$2 }
+  | BAR pattern_case match_pattern          { $2::$3 }
+  | BAR pattern_case NEWLINE match_pattern  { $2 :: $4 }
+  | pattern_case BAR match_pattern          { $1 :: $3 }
 
 atom_expr:
   | LPAREN RPAREN
@@ -406,128 +412,116 @@ atom_expr:
   | uident_atomic { $1 }
   | LPAREN expr RPAREN { $2 }
   | LPAREN expr COMMA exprs RPAREN
-      { mk_expr $startpos $endpos (Exp_Tuple ($2 :: $4)) }
-  | LBRACKET COLON RBRACKET
-      { mk_expr $startpos $endpos (Exp_Collection (Col_Array [])) }
-  | LBRACKET expr COLON RBRACKET
-      { mk_expr $startpos $endpos (Exp_Collection (Col_Array [$2])) }
-  | LBRACKET expr COLON exprs RBRACKET
-      { mk_expr $startpos $endpos (Exp_Collection (Col_Array ($2 :: $4))) }
-  | LBRACKET COMMA RBRACKET
-      { mk_expr $startpos $endpos (Exp_Collection (Col_List [])) }
-  | LBRACKET expr COMMA RBRACKET
-      { mk_expr $startpos $endpos (Exp_Collection (Col_List [$2])) }
-  | LBRACKET expr COMMA exprs RBRACKET
-      { mk_expr $startpos $endpos (Exp_Collection (Col_List ($2 :: $4))) }
+      { mk_expr $startpos $endpos (Exp_Tuple { elements = $2 :: $4}) }
   | lambda
       { mk_expr $startpos $endpos (Exp_Lambda $1) }
   | LBRACE record_fields_expr RBRACE
-      { mk_expr $startpos $endpos (Exp_Record $2) }
+      { mk_expr $startpos $endpos (Exp_Record { fields = $2}) }
   | LOCAL sequence { $2 }
 
 postfix_expr:
   | atom_expr { $1 }
   | postfix_expr args
-      { mk_expr $startpos $endpos (Exp_Apply { closure_fun = $1; args = $2 }) }
+      { mk_expr $startpos $endpos (Exp_Apply { closure_fun = $1; args = $2}) }
   | postfix_expr DOT field_name = ident
-    { mk_expr $startpos $endpos (Exp_Field { record = $1; field_name }) }
+    { mk_expr $startpos $endpos (Exp_Field { record = $1; field_name}) }
   | postfix_expr LBRACKET expr RBRACKET
-      { mk_expr $startpos $endpos (Exp_Index { collection = $1; index = $3 }) }
+      { mk_expr $startpos $endpos (Exp_Index { collection = $1; index = $3}) }
 
 unary_expr:
   | postfix_expr { $1 }
   | MINUS unary_expr
-      { mk_expr $startpos $endpos (Exp_UnOp (Unop_Arithmetic Neg, $2)) }
-  | NOT unary_expr
-      { mk_expr $startpos $endpos (Exp_UnOp (Unop_Logical Not, $2)) }
+      { mk_expr $startpos $endpos (Exp_UnOp { op = Unop_Arithmetic Neg; value = $2}) }
   | BANG unary_expr
-      { mk_expr $startpos $endpos (Exp_UnOp (Unop_Logical Not, $2)) }
-  | BITNOT unary_expr
-      { mk_expr $startpos $endpos (Exp_UnOp (Unop_Bitwise BitNot, $2)) }
-  | TIMES unary_expr
-      { mk_expr $startpos $endpos (Exp_Deref $2) }
+      { mk_expr $startpos $endpos (Exp_UnOp { op = Unop_Logical Not; value = $2}) }
+  | NOT unary_expr
+      { mk_expr $startpos $endpos (Exp_UnOp { op = Unop_Logical Not; value = $2}) }
+  | TILDE unary_expr
+      { mk_expr $startpos $endpos (Exp_UnOp { op = Unop_Bitwise BitNot; value = $2}) }
+  | STAR unary_expr
+      { mk_expr $startpos $endpos (Exp_Deref { value = $2}) }
   | REF unary_expr
-      { mk_expr $startpos $endpos (Exp_Ref $2) }
+      { mk_expr $startpos $endpos (Exp_Ref { value = $2}) }
 
 mul_expr:
   | unary_expr { $1 }
-  | mul_expr TIMES unary_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Arithmetic Mul, $1, $3)) }
-  | mul_expr DIV unary_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Arithmetic Div, $1, $3)) }
-  | mul_expr MOD unary_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Arithmetic Mod, $1, $3)) }
+  | mul_expr STAR unary_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Arithmetic Mul; lvalue = $1; rvalue = $3}) }
+  | mul_expr SLASH unary_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Arithmetic Div; lvalue = $1; rvalue = $3}) }
+  | mul_expr PERCENT unary_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Arithmetic Mod; lvalue = $1; rvalue = $3}) }
 
 add_expr:
   | mul_expr { $1 }
   | add_expr PLUS mul_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Arithmetic Add, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Arithmetic Add; lvalue = $1; rvalue = $3}) }
   | add_expr MINUS mul_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Arithmetic Sub, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Arithmetic Sub; lvalue = $1; rvalue = $3}) }
 
 shift_expr:
   | add_expr { $1 }
   | shift_expr LSHIFT add_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Bitwise LShift, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Bitwise LShift; lvalue = $1; rvalue = $3}) }
   | shift_expr RSHIFT add_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Bitwise RShift, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Bitwise RShift; lvalue = $1; rvalue = $3}) }
 
 bitand_expr:
   | shift_expr { $1 }
-  | bitand_expr BITAND shift_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Bitwise BitAnd, $1, $3)) }
+  | bitand_expr AMPAND shift_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Bitwise BitAnd; lvalue = $1; rvalue = $3}) }
 
 bitxor_expr:
   | bitand_expr { $1 }
-  | bitxor_expr BITXOR bitand_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Bitwise BitXor, $1, $3)) }
+  | bitxor_expr CARET bitand_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Bitwise BitXor; lvalue = $1; rvalue = $3}) }
 
 bitor_expr:
   | bitxor_expr { $1 }
-  | bitor_expr BITOR bitxor_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Bitwise BitOr, $1, $3)) }
+  | bitor_expr BAR_3TIMES bitxor_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Bitwise BitOr; lvalue = $1; rvalue = $3}) }
 
 comp_expr:
   | bitor_expr { $1 }
   | comp_expr LT bitor_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Comparison Lt, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Comparison Lt; lvalue = $1; rvalue = $3}) }
   | comp_expr GT bitor_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Comparison Gt, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Comparison Gt; lvalue = $1; rvalue = $3}) }
   | comp_expr LEQ bitor_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Comparison Le, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Comparison Le; lvalue = $1; rvalue = $3}) }
   | comp_expr GEQ bitor_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Comparison Ge, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Comparison Ge; lvalue = $1; rvalue = $3}) }
   | comp_expr EQEQ bitor_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Comparison Eq, $1, $3)) }
-  | comp_expr NEQ bitor_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Comparison Ne, $1, $3)) }
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Comparison Eq; lvalue = $1; rvalue = $3}) }
+  | comp_expr BANGEQ bitor_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Comparison Ne; lvalue = $1; rvalue = $3}) }
 
 and_expr:
   | comp_expr { $1 }
-  | and_expr AND comp_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Logical And, $1, $3)) }
+  | and_expr AMPANDAND comp_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Logical And; lvalue = $1; rvalue = $3}) }
 
 or_expr:
   | and_expr { $1 }
-  | or_expr OR and_expr
-      { mk_expr $startpos $endpos (Exp_BinOp (Binop_Logical Or, $1, $3)) }
+  | or_expr BARBAR and_expr
+      { mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Logical Or; lvalue = $1; rvalue = $3}) }
 
 assign_expr:
   | or_expr { $1 }
   | postfix_expr EQ assign_expr
-      { mk_expr $startpos $endpos (Exp_Assign { target = $1; value = $3; }) }
+      { mk_expr $startpos $endpos (Exp_Assign { target = $1; value = $3}) }
   | postfix_expr PLUS_EQ assign_expr
       {
-        let value = mk_expr $startpos $endpos (Exp_BinOp (Binop_Arithmetic Add, $1, $3)) in
-        mk_expr $startpos $endpos (Exp_Assign { target = $1; value; })
+        let value = mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Arithmetic Add; lvalue = $1; rvalue = $3}) in
+        mk_expr $startpos $endpos (Exp_Assign { target = $1; value})
       }
   | postfix_expr MINUS_EQ assign_expr
       {
-        let value = mk_expr $startpos $endpos (Exp_BinOp (Binop_Arithmetic Sub, $1, $3)) in
-        mk_expr $startpos $endpos (Exp_Assign { target = $1; value; })
+        let value = mk_expr $startpos $endpos (Exp_BinOp { op = Binop_Arithmetic Sub; lvalue = $1; rvalue = $3}) in
+        mk_expr $startpos $endpos (Exp_Assign { target = $1; value})
       }
   | postfix_expr COLON_EQ assign_expr
-      { mk_expr $startpos $endpos (Exp_AssignRef { target = $1; value = $3 }) }
+      { mk_expr $startpos $endpos (Exp_AssignRef { target = $1; value = $3}) }
 
 expr:
   | let_def
@@ -536,20 +530,22 @@ expr:
   | IF expr THEN cond_sequence elseif_chain
       {
         mk_expr $startpos $endpos
-          (Exp_If { cond = $2; then_branch = $4; else_branch = $5 })
+          (Exp_If { cond = $2; then_branch = $4; else_branch = $5})
       }
   | WHILE expr DO loop_body
-      { mk_expr $startpos $endpos (Exp_While { cond = $2; body = $4 }) }
+      { mk_expr $startpos $endpos (Exp_While { cond = $2; body = $4}) }
   | LOOP sequence
-      { mk_expr $startpos $endpos (Exp_Loop $2) }
+      { mk_expr $startpos $endpos (Exp_Loop { expr = $2}) }
   | BREAK opt_expr
-      { mk_expr $startpos $endpos (Exp_Break $2) }
+      { mk_expr $startpos $endpos (Exp_Break { expr_opt = $2}) }
   | CONTINUE
       { mk_expr $startpos $endpos (Exp_Continue) }
   | RETURN opt_expr
-      { mk_expr $startpos $endpos (Exp_Return $2) }
+      { mk_expr $startpos $endpos (Exp_Return { expr_opt = $2}) }
+  | MATCH expr = expr WITH NEWLINE mpat = match_pattern
+      { mk_expr $startpos $endpos (Exp_Match { expr; cases = mpat}) }
   | MATCH expr = expr WITH mpat = match_pattern
-      { mk_expr $startpos $endpos (Exp_Match (expr, mpat)) }
+    { mk_expr $startpos $endpos (Exp_Match { expr; cases = mpat}) }
 
 exprs:
   | expr                { [$1] }
@@ -560,12 +556,12 @@ record_fields_expr:
   | field_name = ident EQ expr
     {
       let field_name = (field_name : ident) in
-      [mk_record_field_expr $startpos $endpos field_name.name $3]
+      [mk_record_field_expr $startpos $endpos field_name $3]
     }
   | field_name = ident EQ expr SEMI record_fields_expr
     {
       let field_name = (field_name : ident) in
-      mk_record_field_expr $startpos $endpos field_name.name $3 :: $5
+      mk_record_field_expr $startpos $endpos field_name $3 :: $5
     }
 
 %%

@@ -66,35 +66,22 @@ let rec string_of_pattern (p : pattern) : string =
   | TPat_FloatLit f -> f
   | TPat_StringLit s -> "\"" ^ String.escaped s ^ "\""
   | TPat_Ident s -> s.name
-  | TPat_Tuple pats ->
-      "(" ^ String.concat ", " (List.map string_of_pattern pats) ^ ")"
-  | TPat_Record fields ->
+  | TPat_Any -> "_"
+  | TPat_Tuple { elements } ->
+      "(" ^ String.concat ", " (List.map string_of_pattern elements) ^ ")"
+  | TPat_Record { fields } ->
       "{ "
       ^ String.concat ", "
           (List.map
-             (fun (n, p_opt) ->
-               match p_opt with
-               | None -> n
-               | Some p' -> n ^ ": " ^ string_of_pattern p')
+             (fun (f : pattern_record_field) ->
+               match f.pattern with
+               | None -> f.name.name
+               | Some p' -> f.name.name ^ ": " ^ string_of_pattern p')
              fields)
       ^ " }"
-  | TPat_Constructor (name, None) -> name
-  | TPat_Constructor (name, Some pat) ->
+  | TPat_Constructor { ident = name; pattern = None } -> name
+  | TPat_Constructor { ident = name; pattern = Some pat } ->
       name ^ "(" ^ string_of_pattern pat ^ ")"
-  | TPat_Collection (TPat_List pats, _) ->
-      "[" ^ String.concat "; " (List.map string_of_pattern pats) ^ "]"
-  | TPat_Collection (TPat_Array pats, _) ->
-      "[" ^ String.concat ", " (List.map string_of_pattern pats) ^ "]"
-  | TPat_Collection (TPat_Set pats, _) ->
-      "{." ^ String.concat ", " (List.map string_of_pattern pats) ^ ".}"
-  | TPat_Collection (TPat_Map kvs, _) ->
-      "{:"
-      ^ String.concat ", "
-          (List.map
-             (fun (k, v) -> string_of_pattern k ^ ": " ^ string_of_pattern v)
-             kvs)
-      ^ "}"
-  | TPat_Wildcard -> "_"
 
 let string_of_constant (c : constant) : string =
   match c.constant_desc with
@@ -109,9 +96,9 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
   match expr.expr_desc with
   | TExp_Constant c -> string_of_constant c
   | TExp_Ident idr -> idr.name
-  | TExp_Tuple exprs ->
-      "(" ^ String.concat ", " (List.map (string_of_expr ~ind) exprs) ^ ")"
-  | TExp_Record fields ->
+  | TExp_Tuple { elements } ->
+      "(" ^ String.concat ", " (List.map (string_of_expr ~ind) elements) ^ ")"
+  | TExp_Record { fields } ->
       "{ "
       ^ String.concat ", "
           (List.map
@@ -119,37 +106,23 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
                f.field_name.name ^ ": " ^ string_of_expr ~ind f.field_value)
              fields)
       ^ " }"
-  | TExp_Collection (TCol_Array exprs) ->
-      "[" ^ String.concat ", " (List.map (string_of_expr ~ind) exprs) ^ "]"
-  | TExp_Collection (TCol_List exprs) ->
-      "[" ^ String.concat "; " (List.map (string_of_expr ~ind) exprs) ^ "]"
-  | TExp_Collection (TCol_Map exprs) ->
-      "{:"
-      ^ String.concat ", "
-          (List.map
-             (fun (k, v) ->
-               string_of_expr ~ind k ^ ": " ^ string_of_expr ~ind v)
-             exprs)
-      ^ "}"
-  | TExp_Collection (TCol_Set exprs) ->
-      "{." ^ String.concat ", " (List.map (string_of_expr ~ind) exprs) ^ ".}"
   | TExp_VariantConstructor { name; args = None } -> name.name
   | TExp_VariantConstructor { name; args = Some e } ->
       name.name ^ "(" ^ string_of_expr ~ind e ^ ")"
   | TExp_ArrayCreate _ -> "array.create(...)"
-  | TExp_ArrayLength e -> "array.length(" ^ string_of_expr ~ind e ^ ")"
+  | TExp_ArrayLength { arr } -> "array.length(" ^ string_of_expr ~ind expr ^ ")"
   | TExp_ArrayGet { arr; idx } ->
-      "array.get(" ^ string_of_expr ~ind arr ^ ", " ^ string_of_expr ~ind idx
+      "array.get(" ^ string_of_expr ~ind expr ^ ", " ^ string_of_expr ~ind idx
       ^ ")"
   | TExp_ArraySet { arr; idx; value } ->
-      "array.set(" ^ string_of_expr ~ind arr ^ ", " ^ string_of_expr ~ind idx
+      "array.set(" ^ string_of_expr ~ind expr ^ ", " ^ string_of_expr ~ind idx
       ^ ", " ^ string_of_expr ~ind value ^ ")"
-  | TExp_UnOp (op, e) -> string_of_unop op ^ string_of_expr ~ind e
-  | TExp_Ref e -> "ref " ^ string_of_expr ~ind e
-  | TExp_Deref e -> "*" ^ string_of_expr ~ind e
-  | TExp_BinOp (op, e1, e2) ->
-      "(" ^ string_of_expr ~ind e1 ^ " " ^ string_of_binop op ^ " "
-      ^ string_of_expr ~ind e2 ^ ")"
+  | TExp_UnOp { op; value } -> string_of_unop op ^ string_of_expr ~ind value
+  | TExp_Ref { value } -> "ref " ^ string_of_expr ~ind value
+  | TExp_Deref { value } -> "*" ^ string_of_expr ~ind value
+  | TExp_BinOp { op; lvalue; rvalue } ->
+      "(" ^ string_of_expr ~ind lvalue ^ " " ^ string_of_binop op ^ " "
+      ^ string_of_expr ~ind rvalue ^ ")"
   | TExp_Lambda (lam : lambda) ->
       let params =
         List.map
@@ -188,22 +161,22 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
       "for " ^ string_of_pattern iter_var ^ " in "
       ^ string_of_expr ~ind iterable
       ^ " do " ^ string_of_expr ~ind body
-  | TExp_Loop body -> "loop " ^ string_of_expr ~ind body
-  | TExp_Break None -> "break"
-  | TExp_Break (Some e) -> "break " ^ string_of_expr ~ind e
+  | TExp_Loop { expr } -> "loop " ^ string_of_expr ~ind expr
+  | TExp_Break { expr_opt = None } -> "break"
+  | TExp_Break { expr_opt = Some e } -> "break " ^ string_of_expr ~ind e
   | TExp_Continue -> "continue"
-  | TExp_Return None -> "return"
-  | TExp_Return (Some e) -> "return " ^ string_of_expr ~ind e
-  | TExp_Seq exprs ->
+  | TExp_Return { expr_opt = None } -> "return"
+  | TExp_Return { expr_opt = Some e } -> "return " ^ string_of_expr ~ind e
+  | TExp_Seq { exprs } ->
       "{\n"
       ^ String.concat "\n"
           (List.map
              (fun e -> indent (ind + 1) ^ string_of_expr ~ind:(ind + 1) e)
              exprs)
       ^ "\n" ^ indent ind ^ "}"
-  | TExp_Match (scrutinee, _cases) ->
+  | TExp_Match { expr = scrutinee; _ } ->
       "match " ^ string_of_expr ~ind scrutinee ^ " { ... }"
-  | TExp_Field { record; field_name } ->
+  | TExp_Field { record; field_name; _ } ->
       string_of_expr ~ind record ^ "." ^ field_name
   | TExp_Index { collection; index } ->
       string_of_expr ~ind collection ^ "[" ^ string_of_expr ~ind index ^ "]"

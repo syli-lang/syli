@@ -150,7 +150,7 @@ let run (prog : program_core) : core_closure_analysis =
               acc
           | CExp_Apply { closure_fun; args } ->
               List.iter
-                (fun arg ->
+                (fun (arg : expr) ->
                   match arg.node with
                   | CExp_Lambda _ ->
                       Hashtbl.replace acc.lambda_arg_ids arg.id ()

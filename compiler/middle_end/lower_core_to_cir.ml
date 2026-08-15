@@ -398,8 +398,8 @@ let rec lower_expr (ctx : ctx) (e : C.expr) : ctx * I.operand =
                (Printf.sprintf
                   "Unbound identifier during Core->SIR lowering: %s" id.fullname))
       )
-  | CExp_UnOp (op, x) ->
-      let ctx, ox = lower_expr ctx x in
+  | CExp_UnOp { op; value } ->
+      let ctx, ox = lower_expr ctx value in
       let ctx, dst = fresh_var ctx out_ty in
       let rv : I.rvalue =
         {
@@ -410,9 +410,9 @@ let rec lower_expr (ctx : ctx) (e : C.expr) : ctx * I.operand =
       in
       let ctx, _ = emit ctx (I.CR_Assign { dst; rvalue = rv }) out_ty in
       (ctx, I.CR_OVar dst)
-  | CExp_BinOp (op, lhs, rhs) ->
-      let ctx, ol = lower_expr ctx lhs in
-      let ctx, or_ = lower_expr ctx rhs in
+  | CExp_BinOp { op; lvalue; rvalue } ->
+      let ctx, ol = lower_expr ctx lvalue in
+      let ctx, or_ = lower_expr ctx rvalue in
       let binop_result_ty =
         match op with
         | CBinop_Comparison _ -> out_ty
@@ -756,7 +756,7 @@ let rec lower_expr (ctx : ctx) (e : C.expr) : ctx * I.operand =
       (ctx, void_null)
   | CExp_VariantConstructor _ | CExp_ArrayCreate _ | CExp_ArrayLength _
   | CExp_ArrayGet _ | CExp_ArraySet _ | CExp_Loop _ | CExp_Break _
-  | CExp_Continue | CExp_Return _ | CExp_Switch _ | CExp_GetTagVariant _ ->
+  | CExp_Continue | CExp_Return _ | Exp_Match _ ->
       raise (Lowering_error "core form not lowered to SIR yet")
 
 and lower_lambda_function (ctx : ctx) (name : string) (lam : C.lambda)

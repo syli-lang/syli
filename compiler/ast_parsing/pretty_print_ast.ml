@@ -55,51 +55,27 @@ let rec pp_pattern fmt (p : pattern) =
   | Pat_FloatLit f -> Format.fprintf fmt "%s" f
   | Pat_StringLit s -> Format.fprintf fmt "\"%s\"" (String.escaped s)
   | Pat_Ident s -> Format.fprintf fmt "%s" s.name
-  | Pat_Wildcard -> Format.fprintf fmt "_"
-  | Pat_Tuple ps ->
+  | Pat_Any -> Format.fprintf fmt "_"
+  | Pat_Tuple { elements } ->
       Format.fprintf fmt "@[<1>(%a)@]"
         (Format.pp_print_list
            ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
            pp_pattern)
-        ps
-  | Pat_Record fields ->
+        elements
+  | Pat_Record { fields } ->
       Format.fprintf fmt "@[<2>{ @[<hv>%a@]@ }@]"
         (Format.pp_print_list
            ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
-           (fun fmt ((n : ident), p_opt) ->
-             match p_opt with
-             | None -> Format.fprintf fmt "%s" n.name
-             | Some pat -> Format.fprintf fmt "%s =@ %a" n.name pp_pattern pat))
+           (fun fmt (f : pattern_record_field) ->
+             match f.pattern with
+             | None -> Format.fprintf fmt "%s" f.name.name
+             | Some pat ->
+                 Format.fprintf fmt "%s =@ %a" f.name.name pp_pattern pat))
         fields
-  | Pat_Constructor (name, p_opt) -> (
-      match p_opt with
-      | None -> Format.fprintf fmt "%s" name.name
-      | Some pat -> Format.fprintf fmt "%s(%a)" name.name pp_pattern pat)
-  | Pat_Collection (Pat_List ps, _) ->
-      Format.fprintf fmt "@[<1>[%a]@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
-           pp_pattern)
-        ps
-  | Pat_Collection (Pat_Array ps, _) ->
-      Format.fprintf fmt "@[<1>[%a]@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
-           pp_pattern)
-        ps
-  | Pat_Collection (Pat_Set ps, _) ->
-      Format.fprintf fmt "@[<1>{.%a.}@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
-           pp_pattern)
-        ps
-  | Pat_Collection (Pat_Map kvs, _) ->
-      Format.fprintf fmt "@[<1>{:%a}@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
-           (fun fmt (k, v) ->
-             Format.fprintf fmt "%a:@ %a" pp_pattern k pp_pattern v))
-        kvs
+  | Pat_Constructor { name; pattern = None } ->
+      Format.fprintf fmt "%s" name.name
+  | Pat_Constructor { name; pattern = Some pat } ->
+      Format.fprintf fmt "%s(%a)" name.name pp_pattern pat
 
 let pp_unop fmt (op : unop) =
   match op with
@@ -138,62 +114,39 @@ let rec pp_expr fmt (e : expr) =
       | Const_CharLit c' -> Format.fprintf fmt "'%s'" c'
       | Const_StringLit s -> Format.fprintf fmt "\"%s\"" (String.escaped s))
   | Exp_Ident i -> Format.fprintf fmt "%s" i.name
-  | Exp_Tuple es ->
+  | Exp_Tuple { elements } ->
       Format.fprintf fmt "@[<1>(%a)@]"
         (Format.pp_print_list
            ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
            pp_expr)
-        es
-  | Exp_Record fields ->
+        elements
+  | Exp_Record { fields } ->
       Format.fprintf fmt "@[<2>{@ @[<hov>%a@]@ }@]"
         (Format.pp_print_list
            ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
            (fun fmt f ->
-             Format.fprintf fmt "@[<2>%s =@ %a@]" f.field_name pp_expr
+             Format.fprintf fmt "@[<2>%s =@ %a@]" f.field_name.name pp_expr
                f.field_value))
         fields
-  | Exp_Collection (Col_List es) ->
-      Format.fprintf fmt "@[<1>[%a]@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
-           pp_expr)
-        es
-  | Exp_Collection (Col_Array es) ->
-      Format.fprintf fmt "@[<1>[%a]@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
-           pp_expr)
-        es
-  | Exp_Collection (Col_Set es) ->
-      Format.fprintf fmt "@[<1>{.%a.}@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
-           pp_expr)
-        es
-  | Exp_Collection (Col_Map kvs) ->
-      Format.fprintf fmt "@[<1>{:%a}@]"
-        (Format.pp_print_list
-           ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
-           (fun fmt (k, v) -> Format.fprintf fmt "%a:@ %a" pp_expr k pp_expr v))
-        kvs
   | Exp_VariantConstructor { name; arg } -> (
       match arg with
       | None -> Format.fprintf fmt "%s" name.name
       | Some inner -> Format.fprintf fmt "%s(%a)" name.name pp_expr inner)
   | Exp_ArrayCreate { size; _ } ->
       Format.fprintf fmt "array.create(..., %a)" pp_expr size
-  | Exp_ArrayLength e1 -> Format.fprintf fmt "array.length(%a)" pp_expr e1
+  | Exp_ArrayLength { arr } -> Format.fprintf fmt "array.length(%a)" pp_expr arr
   | Exp_ArrayGet { arr; idx } ->
       Format.fprintf fmt "array.get(%a, %a)" pp_expr arr pp_expr idx
   | Exp_ArraySet { arr; idx; value } ->
       Format.fprintf fmt "array.set(%a, %a, %a)" pp_expr arr pp_expr idx pp_expr
         value
-  | Exp_UnOp (op, e1) ->
-      Format.fprintf fmt "@[<2>%a@ %a@]" pp_unop op pp_expr e1
-  | Exp_Ref e1 -> Format.fprintf fmt "@[<2>ref@ %a@]" pp_expr e1
-  | Exp_Deref e1 -> Format.fprintf fmt "@[<2>*@ %a@]" pp_expr e1
-  | Exp_BinOp (op, l, r) ->
-      Format.fprintf fmt "@[<1>(%a@ %a@ %a)@]" pp_expr l pp_binop op pp_expr r
+  | Exp_UnOp { op; value } ->
+      Format.fprintf fmt "@[<2>%a@ %a@]" pp_unop op pp_expr value
+  | Exp_Ref { value } -> Format.fprintf fmt "@[<2>ref@ %a@]" pp_expr value
+  | Exp_Deref { value } -> Format.fprintf fmt "@[<2>*@ %a@]" pp_expr value
+  | Exp_BinOp { op; lvalue; rvalue } ->
+      Format.fprintf fmt "@[<1>(%a@ %a@ %a)@]" pp_expr lvalue pp_binop op
+        pp_expr rvalue
   | Exp_Lambda { params; body; ret_ty; _ } ->
       let pp_param fmt (p : param) =
         Format.fprintf fmt "%a" pp_pattern p.pattern;
@@ -218,9 +171,9 @@ let rec pp_expr fmt (e : expr) =
   | Exp_Let ld ->
       Format.fprintf fmt "@[<2>let %a =@ %a@]" pp_pattern ld.pattern pp_expr
         ld.value
-  | Exp_Assign { target; value; _ } ->
+  | Exp_Assign { target; value } ->
       Format.fprintf fmt "@[<2>%a =@ %a@]" pp_expr target pp_expr value
-  | Exp_AssignRef { target; value; _ } ->
+  | Exp_AssignRef { target; value } ->
       Format.fprintf fmt "@[<2>%a :=@ %a@]" pp_expr target pp_expr value
   | Exp_If { cond; then_branch; else_branch } -> (
       match else_branch with
@@ -235,19 +188,21 @@ let rec pp_expr fmt (e : expr) =
   | Exp_ForIn { iter_var; iterable; body } ->
       Format.fprintf fmt "@[<v 2>for %a in %a do@ %a@]" pp_pattern iter_var
         pp_expr iterable pp_expr body
-  | Exp_Loop body -> Format.fprintf fmt "@[<v 2>loop@ %a@]" pp_expr body
-  | Exp_Break None -> Format.fprintf fmt "break"
-  | Exp_Break (Some e1) -> Format.fprintf fmt "@[<2>break %a@]" pp_expr e1
+  | Exp_Loop { expr } -> Format.fprintf fmt "@[<v 2>loop@ %a@]" pp_expr expr
+  | Exp_Break { expr_opt = None } -> Format.fprintf fmt "break"
+  | Exp_Break { expr_opt = Some e1 } ->
+      Format.fprintf fmt "@[<2>break %a@]" pp_expr e1
   | Exp_Continue -> Format.fprintf fmt "continue"
-  | Exp_Return None -> Format.fprintf fmt "return"
-  | Exp_Return (Some e1) -> Format.fprintf fmt "@[<2>return %a@]" pp_expr e1
-  | Exp_Seq es ->
+  | Exp_Return { expr_opt = None } -> Format.fprintf fmt "return"
+  | Exp_Return { expr_opt = Some e1 } ->
+      Format.fprintf fmt "@[<2>return %a@]" pp_expr e1
+  | Exp_Seq { exprs } ->
       Format.fprintf fmt "@[<v 2>{@ %a@;<0 -2>}@]"
         (Format.pp_print_list
            ~pp_sep:(fun fmt () -> Format.fprintf fmt ";@ ")
            pp_expr)
-        es
-  | Exp_Match (scrutinee, _) ->
+        exprs
+  | Exp_Match { expr = scrutinee; _ } ->
       Format.fprintf fmt "@[<2>match %a with ...@]" pp_expr scrutinee
   | Exp_Field { record; field_name } ->
       Format.fprintf fmt "%a.%s" pp_expr record field_name.name

@@ -1,10 +1,9 @@
 open Syli_core.Core_ast
 module NC = Syli_core.Normalize
 
-let dummy_loc = { filename = "test"; span = { start_pos = 0; end_pos = 0 } }
 let unit_ty = { ty_desc = CTy_Constant CTy_Unit }
-let ident ?(id = 0) name = { fullname = name; id; loc = dummy_loc }
-let mk_expr id node = { id; node; loc = dummy_loc; ty = unit_ty }
+let ident ?(id = 0) name = { name; fullname = name; path = []; id }
+let mk_expr id node = { id; node; ty = unit_ty }
 let mk_const_unit id = mk_expr id (CExp_Constant CConst_Unit)
 
 let mk_lambda_expr id params body =

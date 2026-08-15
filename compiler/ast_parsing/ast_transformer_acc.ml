@@ -44,87 +44,34 @@ let rec transform_pattern (t : 'acc transformer) (acc : 'acc) (p : pattern) :
     'acc * pattern =
   match p.node with
   | Pat_Unit | Pat_BoolLit _ | Pat_IntLit _ | Pat_CharLit _ | Pat_FloatLit _
-  | Pat_StringLit _ | Pat_Ident _ | Pat_Wildcard ->
+  | Pat_StringLit _ | Pat_Ident _ | Pat_Any ->
       (acc, p)
-  | Pat_Tuple ps ->
-      let acc', ps' =
-        List.fold_left_map (fun a p' -> t.pattern t a p') acc ps
+  | Pat_Tuple { elements } ->
+      let acc', elements' =
+        List.fold_left_map (fun a p' -> t.pattern t a p') acc elements
       in
-      (acc', { p with node = Pat_Tuple ps' })
-  | Pat_Record fields ->
+      (acc', { p with node = Pat_Tuple { elements = elements' } })
+  | Pat_Record { fields } ->
       let acc', fields' =
         List.fold_left_map
-          (fun a (name, p_opt) ->
-            match p_opt with
-            | None -> (a, (name, None))
+          (fun a (f : pattern_record_field) ->
+            match f.pattern with
+            | None -> (a, f)
             | Some p' ->
                 let a', p'' = t.pattern t a p' in
-                (a', (name, Some p'')))
+                (a', { f with pattern = Some p'' }))
           acc fields
       in
-      (acc', { p with node = Pat_Record fields' })
-  | Pat_Constructor (name, p_opt) ->
-      let acc', p_opt' =
-        match p_opt with
+      (acc', { p with node = Pat_Record { fields = fields' } })
+  | Pat_Constructor { name; pattern } ->
+      let acc', pattern' =
+        match pattern with
         | None -> (acc, None)
         | Some p' ->
             let a', p'' = t.pattern t acc p' in
             (a', Some p'')
       in
-      (acc', { p with node = Pat_Constructor (name, p_opt') })
-  | Pat_Collection (Pat_List ps, ty_opt) ->
-      let acc', ps' =
-        List.fold_left_map (fun a p' -> t.pattern t a p') acc ps
-      in
-      let acc'', ty_opt' =
-        match ty_opt with
-        | None -> (acc', None)
-        | Some ty' ->
-            let a', ty'' = t.ty t acc' ty' in
-            (a', Some ty'')
-      in
-      (acc'', { p with node = Pat_Collection (Pat_List ps', ty_opt') })
-  | Pat_Collection (Pat_Array ps, ty_opt) ->
-      let acc', ps' =
-        List.fold_left_map (fun a p' -> t.pattern t a p') acc ps
-      in
-      let acc'', ty_opt' =
-        match ty_opt with
-        | None -> (acc', None)
-        | Some ty' ->
-            let a', ty'' = t.ty t acc' ty' in
-            (a', Some ty'')
-      in
-      (acc'', { p with node = Pat_Collection (Pat_Array ps', ty_opt') })
-  | Pat_Collection (Pat_Set ps, ty_opt) ->
-      let acc', ps' =
-        List.fold_left_map (fun a p' -> t.pattern t a p') acc ps
-      in
-      let acc'', ty_opt' =
-        match ty_opt with
-        | None -> (acc', None)
-        | Some ty' ->
-            let a', ty'' = t.ty t acc' ty' in
-            (a', Some ty'')
-      in
-      (acc'', { p with node = Pat_Collection (Pat_Set ps', ty_opt') })
-  | Pat_Collection (Pat_Map kvs, ty_opt) ->
-      let acc', kvs' =
-        List.fold_left_map
-          (fun a (k, v) ->
-            let a', k' = t.pattern t a k in
-            let a'', v' = t.pattern t a' v in
-            (a'', (k', v')))
-          acc kvs
-      in
-      let acc'', ty_opt' =
-        match ty_opt with
-        | None -> (acc', None)
-        | Some ty' ->
-            let a', ty'' = t.ty t acc' ty' in
-            (a', Some ty'')
-      in
-      (acc'', { p with node = Pat_Collection (Pat_Map kvs', ty_opt') })
+      (acc', { p with node = Pat_Constructor { name; pattern = pattern' } })
 
 let transform_param (t : 'acc transformer) (acc : 'acc) (p : param) :
     'acc * param =
@@ -170,10 +117,12 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
     'acc * expr =
   match e.expr_desc with
   | Exp_Constant _ | Exp_Ident _ | Exp_Continue -> (acc, e)
-  | Exp_Tuple es ->
-      let acc', es' = List.fold_left_map (fun a e' -> t.expr t a e') acc es in
-      (acc', { e with expr_desc = Exp_Tuple es' })
-  | Exp_Record fields ->
+  | Exp_Tuple { elements } ->
+      let acc', elements' =
+        List.fold_left_map (fun a e' -> t.expr t a e') acc elements
+      in
+      (acc', { e with expr_desc = Exp_Tuple { elements = elements' } })
+  | Exp_Record { fields } ->
       let acc', fields' =
         List.fold_left_map
           (fun a f ->
@@ -181,26 +130,7 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
             (a', { f with field_value = v' }))
           acc fields
       in
-      (acc', { e with expr_desc = Exp_Record fields' })
-  | Exp_Collection (Col_List es) ->
-      let acc', es' = List.fold_left_map (fun a e' -> t.expr t a e') acc es in
-      (acc', { e with expr_desc = Exp_Collection (Col_List es') })
-  | Exp_Collection (Col_Array es) ->
-      let acc', es' = List.fold_left_map (fun a e' -> t.expr t a e') acc es in
-      (acc', { e with expr_desc = Exp_Collection (Col_Array es') })
-  | Exp_Collection (Col_Set es) ->
-      let acc', es' = List.fold_left_map (fun a e' -> t.expr t a e') acc es in
-      (acc', { e with expr_desc = Exp_Collection (Col_Set es') })
-  | Exp_Collection (Col_Map kvs) ->
-      let acc', kvs' =
-        List.fold_left_map
-          (fun a (k, v) ->
-            let a', k' = t.expr t a k in
-            let a'', v' = t.expr t a' v in
-            (a'', (k', v')))
-          acc kvs
-      in
-      (acc', { e with expr_desc = Exp_Collection (Col_Map kvs') })
+      (acc', { e with expr_desc = Exp_Record { fields = fields' } })
   | Exp_VariantConstructor { name; arg } ->
       let acc', arg' =
         match arg with
@@ -210,24 +140,17 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
             (a', Some inner')
       in
       (acc', { e with expr_desc = Exp_VariantConstructor { name; arg = arg' } })
-  | Exp_ArrayCreate { lambda_init; element_ty; size } ->
-      let acc', lambda_init' = transform_lambda t acc lambda_init in
-      let acc'', element_ty' = t.ty t acc' element_ty in
-      let acc''', size' = t.expr t acc'' size in
-      ( acc''',
+  | Exp_ArrayCreate { element_ty; size } ->
+      let acc', element_ty' = t.ty t acc element_ty in
+      let acc'', size' = t.expr t acc' size in
+      ( acc'',
         {
           e with
-          expr_desc =
-            Exp_ArrayCreate
-              {
-                lambda_init = lambda_init';
-                element_ty = element_ty';
-                size = size';
-              };
+          expr_desc = Exp_ArrayCreate { element_ty = element_ty'; size = size' };
         } )
-  | Exp_ArrayLength e1 ->
-      let acc', e1' = t.expr t acc e1 in
-      (acc', { e with expr_desc = Exp_ArrayLength e1' })
+  | Exp_ArrayLength { arr } ->
+      let acc', arr' = t.expr t acc arr in
+      (acc', { e with expr_desc = Exp_ArrayLength { arr = arr' } })
   | Exp_ArrayGet { arr; idx } ->
       let acc', arr' = t.expr t acc arr in
       let acc'', idx' = t.expr t acc' idx in
@@ -241,19 +164,23 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
           e with
           expr_desc = Exp_ArraySet { arr = arr'; idx = idx'; value = value' };
         } )
-  | Exp_UnOp (op, e1) ->
-      let acc', e1' = t.expr t acc e1 in
-      (acc', { e with expr_desc = Exp_UnOp (op, e1') })
-  | Exp_BinOp (op, l, r) ->
-      let acc', l' = t.expr t acc l in
-      let acc'', r' = t.expr t acc' r in
-      (acc'', { e with expr_desc = Exp_BinOp (op, l', r') })
-  | Exp_Ref e1 ->
-      let acc', e1' = t.expr t acc e1 in
-      (acc', { e with expr_desc = Exp_Ref e1' })
-  | Exp_Deref e1 ->
-      let acc', e1' = t.expr t acc e1 in
-      (acc', { e with expr_desc = Exp_Deref e1' })
+  | Exp_UnOp { op; value } ->
+      let acc', value' = t.expr t acc value in
+      (acc', { e with expr_desc = Exp_UnOp { op; value = value' } })
+  | Exp_BinOp { op; lvalue; rvalue } ->
+      let acc', lvalue' = t.expr t acc lvalue in
+      let acc'', rvalue' = t.expr t acc' rvalue in
+      ( acc'',
+        {
+          e with
+          expr_desc = Exp_BinOp { op; lvalue = lvalue'; rvalue = rvalue' };
+        } )
+  | Exp_Ref { value } ->
+      let acc', value' = t.expr t acc value in
+      (acc', { e with expr_desc = Exp_Ref { value = value' } })
+  | Exp_Deref { value } ->
+      let acc', value' = t.expr t acc value in
+      (acc', { e with expr_desc = Exp_Deref { value = value' } })
   | Exp_Lambda lam ->
       let acc', lam' = transform_lambda t acc lam in
       (acc', { e with expr_desc = Exp_Lambda lam' })
@@ -320,36 +247,40 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
             Exp_ForIn
               { iter_var = iter_var'; iterable = iterable'; body = body' };
         } )
-  | Exp_Loop body ->
-      let acc', body' = t.expr t acc body in
-      (acc', { e with expr_desc = Exp_Loop body' })
-  | Exp_Break e_opt ->
-      let acc', e_opt' =
-        match e_opt with
+  | Exp_Loop { expr } ->
+      let acc', expr' = t.expr t acc expr in
+      (acc', { e with expr_desc = Exp_Loop { expr = expr' } })
+  | Exp_Break { expr_opt } ->
+      let acc', expr_opt' =
+        match expr_opt with
         | None -> (acc, None)
         | Some e' ->
             let a', e'' = t.expr t acc e' in
             (a', Some e'')
       in
-      (acc', { e with expr_desc = Exp_Break e_opt' })
-  | Exp_Return e_opt ->
-      let acc', e_opt' =
-        match e_opt with
+      (acc', { e with expr_desc = Exp_Break { expr_opt = expr_opt' } })
+  | Exp_Return { expr_opt } ->
+      let acc', expr_opt' =
+        match expr_opt with
         | None -> (acc, None)
         | Some e' ->
             let a', e'' = t.expr t acc e' in
             (a', Some e'')
       in
-      (acc', { e with expr_desc = Exp_Return e_opt' })
-  | Exp_Seq es ->
-      let acc', es' = List.fold_left_map (fun a e' -> t.expr t a e') acc es in
-      (acc', { e with expr_desc = Exp_Seq es' })
-  | Exp_Match (scrutinee, cases) ->
+      (acc', { e with expr_desc = Exp_Return { expr_opt = expr_opt' } })
+  | Exp_Seq { exprs } ->
+      let acc', exprs' =
+        List.fold_left_map (fun a e' -> t.expr t a e') acc exprs
+      in
+      (acc', { e with expr_desc = Exp_Seq { exprs = exprs' } })
+  | Exp_Match { expr = scrutinee; cases } ->
       let acc', scrutinee' = t.expr t acc scrutinee in
       let acc'', cases' =
         List.fold_left_map (fun a c -> t.pattern_case t a c) acc' cases
       in
-      (acc'', { e with expr_desc = Exp_Match (scrutinee', cases') })
+      ( acc'',
+        { e with expr_desc = Exp_Match { expr = scrutinee'; cases = cases' } }
+      )
   | Exp_Field { record; field_name } ->
       let acc', record' = t.expr t acc record in
       (acc', { e with expr_desc = Exp_Field { record = record'; field_name } })
@@ -365,15 +296,21 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
 let transform_pattern_case (t : 'acc transformer) (acc : 'acc)
     (c : pattern_case) : 'acc * pattern_case =
   let acc', pattern' = t.pattern t acc c.pattern in
-  let acc'', when_opt' =
-    match c.when_opt with
+  let acc'', when_condition' =
+    match c.when_condition with
     | None -> (acc', None)
     | Some e ->
         let a', e' = t.expr t acc' e in
         (a', Some e')
   in
   let acc''', body' = t.expr t acc'' c.body in
-  (acc''', { c with pattern = pattern'; when_opt = when_opt'; body = body' })
+  ( acc''',
+    {
+      c with
+      pattern = pattern';
+      when_condition = when_condition';
+      body = body';
+    } )
 
 let transform_ty_decl (t : 'acc transformer) (acc : 'acc) (td : ty_decl) :
     'acc * ty_decl =
@@ -397,9 +334,18 @@ let transform_ty_decl (t : 'acc transformer) (acc : 'acc) (td : ty_decl) :
             let a', arg' =
               match c.arg with
               | None -> (a, None)
-              | Some ty ->
+              | Some (Constr_ty ty) ->
                   let a'', ty' = t.ty t a ty in
-                  (a'', Some ty')
+                  (a'', Some (Constr_ty ty'))
+              | Some (Constr_record fields) ->
+                  let a'', fields' =
+                    List.fold_left_map
+                      (fun acc' f ->
+                        let acc'', ty' = t.ty t acc' f.field_ty in
+                        (acc'', { f with field_ty = ty' }))
+                      a fields
+                  in
+                  (a'', Some (Constr_record fields'))
             in
             (a', { c with arg = arg' }))
           acc ctors

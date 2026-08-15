@@ -267,21 +267,35 @@ Type error propagates from typing phase:
   Fatal error: exception Syli_typing__Env.Type_error("type mismatch: int64 vs bool")
   [2]
 
-Collection literals are not yet lowered (unsupported):
+Collection literals are no longer supported (moved to traits):
   $ cat >test_arr.sy <<EOF
   > let arr = [1, 2, 3]
   > EOF
   $ dune exec sylic -- cir test_arr.sy 2>&1
-  Fatal error: exception Middle_end__Lower_ast_to_core.Desugar_error(":10-19: collection literals are not lowered to Core yet")
-  [2]
+  
+  Parse error in test_arr.sy at line 1, column 10
+  
+    1 | let arr = [1, 2, 3]
+                   ^
+  
+  Unexpected token: '['
+  
+  [1]
 
 Missing file produces an error:
   $ cat >test_arr.sy <<EOF
   > let arr = [1, 2, 3]
   > EOF
   $ dune exec sylic -- cir test_arr.sy 2>&1
-  Fatal error: exception Middle_end__Lower_ast_to_core.Desugar_error(":10-19: collection literals are not lowered to Core yet")
-  [2]
+  
+  Parse error in test_arr.sy at line 1, column 10
+  
+    1 | let arr = [1, 2, 3]
+                   ^
+  
+  Unexpected token: '['
+  
+  [1]
 
 Closures as an argument:
   $ cat >test_closure.src <<EOF

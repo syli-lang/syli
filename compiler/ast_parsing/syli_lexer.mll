@@ -28,14 +28,14 @@ rule token = parse
 
   (* --- Spaces and tabs (emit SPACE token) --- *)
   | [' ' '\t']+ as s
-    { SPACE (
-        String.fold_left 
-          (fun acc c -> 
-            if c = ' ' then 
-              acc + 1 
-            else 
-              acc + identation) 0 s)
-    }
+      { SPACE (
+          String.fold_left
+            (fun acc c ->
+              if c = ' ' then
+                acc + 1
+              else
+                acc + identation) 0 s)
+      }
 
   (* --- Newlines (always emit NEWLINE) --- *)
   | '\n'
@@ -118,24 +118,25 @@ rule token = parse
   | ":="        { COLON_EQ }
   | "="         { EQ }
   | "=="        { EQEQ }
-  | "!="        { NEQ }
+  | "!="        { BANGEQ }
   | "<="        { LEQ }
   | ">="        { GEQ }
   | "<"         { LT }
   | ">"         { GT }
   | "+"         { PLUS }
   | "-"         { MINUS }
-  | "*"         { TIMES }
-  | "/"         { DIV }
+  | "*"         { STAR }
+  | "/"         { SLASH }
   | "+="        { PLUS_EQ }
   | "-="        { MINUS_EQ }
-  | "~"         { BITNOT }
-  | "&"         { BITAND }
-  | "|"         { BITOR }
-  | "^"         { BITXOR }
+  | "~"         { TILDE }
+  | "&"         { AMPAND }
+  | "|"         { BAR }
+  | "|||"       { BAR_3TIMES }
+  | "^"         { CARET }
   | "<<"        { LSHIFT }
   | ">>"        { RSHIFT }
-  | "%"         { MOD }
+  | "%"         { PERCENT }
   | "["         { LBRACKET }
   | "]"         { RBRACKET }
   | "[|"        { LBRACKET_BAR }
@@ -146,8 +147,8 @@ rule token = parse
   | "->"        { ARROW }
   | "!"         { BANG }
   | "_"         { UNDERSCORE }
-  | "&&"        { AND }
-  | "||"        { OR }
+  | "&&"        { AMPANDAND }
+  | "||"        { BARBAR }
   | '\r'        { token lexbuf }  (* ignore carriage returns *)
 
   (* --- End of file --- *)
