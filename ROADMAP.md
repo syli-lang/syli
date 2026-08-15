@@ -25,7 +25,7 @@ These are objectifs to reach but they are not fixed and could change or being im
     - introduce weak type or restrict polymorphic with memory.
     - Ref
       - type ref int -> {mutable value: int}
-      - ops: "!", ":="
+      - ops: "*" (deref), ":=" (assignment)
     - Record with mutable field
     - roots objects for tracing cylic objects
 
@@ -52,11 +52,9 @@ These are objectifs to reach but they are not fixed and could change or being im
 - [ ] list (testing parametric type & pattern matching)
     - type list 'a = [] | (::) of ('a, list 'a)
 
-- [ ] Pattern match collection
+- [ ] Pattern match of builtin type
     - list:  []   [x]     [x;y]
     - array: [,]  [x,]    [x,y]
-    - set:   {;}  {x}     {x;y}
-    - map:   {}   {k->v}  {k1->v1;k2->v2}
 
 - [ ] Exceptions
     - try catch
@@ -74,7 +72,7 @@ These are objectifs to reach but they are not fixed and could change or being im
     - compilation unit
         - syi generate smi (compiled module interface)
         - sy generate symo (compile module object), symi, symg (generics), syml (inlinable)
-    - Primitive types annotations like.
+    - Primitive types annotations like. (maybe)
       - type char = int32 [@abstract, @primitive], primitive override type with "open" module. In signature you could do "type char [@primitive]"
 
 - [ ] Start the Std library (module)
@@ -83,11 +81,13 @@ These are objectifs to reach but they are not fixed and could change or being im
     - support traits
     - add arithmetic ops traits: - * / +
     - add indexable traits ex. obj[index]
-    - collections powered by traits:
-        - list:  []   [x]       [x;y]
-        - array: [,]  [x,]      [x,y]
-        - set:   {;}  {x}       {x;y}
-        - map:   {}   {k->v}    {k1->v1;k2->v2}
+    - pattern match collections with traits:
+        - list:  #[]   #[x]       #[x;y]
+        - array: #[,]  #[x,]      #[x,y]
+        - set:   #{;}  #{x}       #{x;y}
+        - map:   #{}   #{k->v}    #{k1->v1;k2->v2}
+
+    ('#' to avoid the confusion with builtin type because of the type inference)
 
 - [ ] Dyn Trait
 

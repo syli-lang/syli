@@ -298,3 +298,41 @@
   Unexpected token: 'IDENT(print_int)'
   
   [1]
+
+
+type variant
+  $ cat >test_variant.sy <<'EOF'
+  > type option = None | Some of int64
+  > EOF
+  $ dune exec sylic parse test_variant.sy
+  Parsed test_variant.sy
+  type option
+
+pattern match
+  $ cat >test_pattern.sy <<'EOF'
+  > let m =
+  >   match x with
+  >   | None -> 2
+  >   | Some -> 3
+  > EOF
+  $ dune exec sylic parse test_pattern.sy
+  Parsed test_pattern.sy
+  let m = match x { ... }
+
+pattern match
+  $ cat >test_pattern.sy <<'EOF'
+  > let m =
+  >   match x with None -> 2 | Some -> 3
+  > EOF
+  $ dune exec sylic parse test_pattern.sy
+  Parsed test_pattern.sy
+  let m = match x { ... }
+
+
+pattern match Any
+  $ cat >test_pattern.sy <<'EOF'
+  > let m = match x with None -> 2 | Some _ -> 3
+  > EOF
+  $ dune exec sylic parse test_pattern.sy
+  Parsed test_pattern.sy
+  let m = match x { ... }

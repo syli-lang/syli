@@ -13,7 +13,7 @@ The goal of the language is to have expressivity, low latency and high performan
 This language is not doing something totally new, it is trying to hold on giants, to borrow from languages that are mature and are doing amazing things for years.
 
 > [!CAUTION]
-> The project is under development, it is not ready for production yet.
+> The project is under development, it is not ready for production yet. For contributors: the tests are good indicative of the progression in the language, there could be inactive code inside the project as a specification.
 
 ## Building
 

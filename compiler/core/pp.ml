@@ -79,19 +79,18 @@ let string_of_constant = function
 
 let indent_str n = String.make (n * 2) ' '
 
-(* Renders the expression content without a trailing ": ty" annotation.
-   Used in positions where an annotation would break syntax or cause doubles
-   (e.g. the function in an apply, the record in a field access). *)
-let rec string_of_expr_inner ?(indent = 0) e =
+let rec string_of_expr_inner ?(indent = 0) (e : expr) : string =
   let p = indent_str indent in
   match e.node with
   | CExp_Constant c -> string_of_constant c
   | CExp_Ident id -> id.fullname
-  | CExp_UnOp (op, x) ->
-      Printf.sprintf "%s%s" (string_of_unop op) (string_of_expr ~indent x)
-  | CExp_BinOp (op, l, r) ->
-      Printf.sprintf "(%s %s %s)" (string_of_expr ~indent l)
-        (string_of_binop op) (string_of_expr ~indent r)
+  | CExp_UnOp { op; value } ->
+      Printf.sprintf "%s%s" (string_of_unop op) (string_of_expr ~indent value)
+  | CExp_BinOp { op; lvalue; rvalue } ->
+      Printf.sprintf "(%s %s %s)"
+        (string_of_expr ~indent lvalue)
+        (string_of_binop op)
+        (string_of_expr ~indent rvalue)
   | CExp_Record fields ->
       let fs =
         String.concat "; "
@@ -113,10 +112,9 @@ let rec string_of_expr_inner ?(indent = 0) e =
         (string_of_expr_inner ~indent record)
         field_idx
         (string_of_expr ~indent value)
-  | CExp_ArrayCreate { init_fun; element_ty; size } ->
-      Printf.sprintf "array_create<%s>[%s](%s)" (string_of_ty element_ty)
+  | CExp_ArrayCreate { element_ty; size } ->
+      Printf.sprintf "array_create<%s>[%s]" (string_of_ty element_ty)
         (string_of_expr ~indent size)
-        (string_of_lambda ~indent init_fun)
   | CExp_ArrayLength arr ->
       Printf.sprintf "array_length(%s)" (string_of_expr ~indent arr)
   | CExp_ArrayGet { arr; idx } ->
@@ -179,39 +177,63 @@ let rec string_of_expr_inner ?(indent = 0) e =
         (indent_str (indent + 1))
         (string_of_expr ~indent:(indent + 1) then_branch)
         else_str
-  | CExp_Switch { scrutinee; cases; default } ->
+  | Exp_Match { expr = scrutinee; cases } ->
       let cases_str =
         List.map
-          (fun (v, body) ->
-            Printf.sprintf "%s| %s -> %s"
+          (fun (c : pattern_case) ->
+            let guard =
+              match c.when_condition with
+              | None -> ""
+              | Some g ->
+                  Printf.sprintf " when %s"
+                    (string_of_expr ~indent:(indent + 1) g)
+            in
+            Printf.sprintf "%s| %s%s -> %s"
               (indent_str (indent + 1))
-              (string_of_expr ~indent:(indent + 1) v)
-              (string_of_expr ~indent:(indent + 1) body))
+              (string_of_pattern ~indent:(indent + 1) c.pattern)
+              guard
+              (string_of_expr ~indent:(indent + 1) c.body))
           cases
       in
-      let default_str =
-        match default with
-        | None -> ""
-        | Some d ->
-            Printf.sprintf "\n%s| _ -> %s"
-              (indent_str (indent + 1))
-              (string_of_expr ~indent:(indent + 1) d)
-      in
-      Printf.sprintf "switch %s {\n%s%s\n%s}"
+      Printf.sprintf "match %s {\n%s\n%s}"
         (string_of_expr ~indent scrutinee)
         (String.concat "\n" cases_str)
-        default_str p
-  | CExp_GetTagVariant x ->
-      Printf.sprintf "get_tag(%s)" (string_of_expr ~indent x)
+        p
 
-(* Renders an expression. Structural nodes (lambda, let, seq, if, loops,
-   control flow) are printed without a trailing annotation since their types
-   are either shown inline (lambda signature) or implied by their branches.
-   Value-producing nodes append ": ty". *)
+and string_of_pattern ?(indent = 0) (p : pattern) : string =
+  let p_indent = indent_str indent in
+  let rec inner (p : pattern) : string =
+    match p.node with
+    | Pat_Unit -> "()"
+    | Pat_BoolLit s -> s
+    | Pat_IntLit s -> s
+    | Pat_CharLit s -> Printf.sprintf "'%s'" s
+    | Pat_FloatLit s -> s
+    | Pat_StringLit s -> Printf.sprintf "%S" s
+    | Pat_Ident id -> id.fullname
+    | Pat_Any -> "_"
+    | Pat_Record fields ->
+        let fs =
+          String.concat "; "
+            (List.map
+               (fun (f : pattern_record_field) ->
+                 match f.pattern with
+                 | None -> f.name.fullname
+                 | Some p' ->
+                     Printf.sprintf "%s = %s" f.name.fullname (inner p'))
+               fields)
+        in
+        Printf.sprintf "{ %s }" fs
+    | Pat_Constructor { tag; pattern = None } -> Printf.sprintf "ctor(%d)" tag
+    | Pat_Constructor { tag; pattern = Some p' } ->
+        Printf.sprintf "ctor(%d, %s)" tag (inner p')
+  in
+  p_indent ^ inner p
+
 and string_of_expr ?(indent = 0) e =
   let inner = string_of_expr_inner ~indent e in
   match e.node with
-  | CExp_Lambda _ | CExp_Let _ | CExp_Seq _ | CExp_If _ | CExp_Switch _
+  | CExp_Lambda _ | CExp_Let _ | CExp_Seq _ | CExp_If _ | Exp_Match _
   | CExp_Loop _ | CExp_Break _ | CExp_Continue | CExp_Return _ ->
       inner
   | _ -> Printf.sprintf "%s : %s" inner (string_of_ty e.ty)
@@ -237,7 +259,18 @@ let string_of_ty_decl_desc = function
              (fun c ->
                match c.arg with
                | None -> Printf.sprintf "ctor%d" c.id
-               | Some t -> Printf.sprintf "ctor%d of %s" c.id (string_of_ty t))
+               | Some (Constr_ty t) ->
+                   Printf.sprintf "ctor%d of %s" c.id (string_of_ty t)
+               | Some (Constr_record (fields : record_field_ty list)) ->
+                   let fs =
+                     String.concat "; "
+                       (List.map
+                          (fun (f : record_field_ty) ->
+                            Printf.sprintf "%d : %s" f.field_idx
+                              (string_of_ty f.field_ty))
+                          fields)
+                   in
+                   Printf.sprintf "ctor%d of { %s }" c.id fs)
              ctors)
       in
       ctors_str

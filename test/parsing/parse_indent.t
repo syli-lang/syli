@@ -89,9 +89,9 @@
   Parse error in parse0.src at line 3, column 4
   
     3 |     [|
-             ^^^^^^^^^^^^
+             ^^
   
-  Unexpected token: 'LBRACKET_BAR'
+  Unexpected token: '[|'
   
   [1]
 

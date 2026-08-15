@@ -74,8 +74,8 @@ type path = string list
 type location = { start_pos : int; end_pos : int; filename : string }
 (** Source location in the input file. *)
 
-type ident = { name : string; id : int; loc : location }
-(** A name paired with a unique ID and source location. *)
+type ident = { name : string; path : path; id : int; loc : location }
+(** A name paired with a path, a unique ID and source location. *)
 
 (** Mutability flag for let-bindings and record fields. *)
 type mut_flag = Mutable | Immutable
@@ -114,14 +114,6 @@ and ty_desc =
   | Ty_Ref of ty
   | Ty_Defined of { name : ident; args : ty list }
 
-type variant_constructor_decl = {
-  id : int;
-  name : ident;
-  arg : ty option;
-  loc : location;
-}
-(** A single variant constructor declaration. *)
-
 type record_field_decl = {
   id : int;
   field_name : ident;
@@ -130,6 +122,18 @@ type record_field_decl = {
   loc : location;
 }
 (** A single record field declaration. *)
+
+type variant_constructor_decl = {
+  id : int;
+  name : ident;
+  arg : variant_constructor_arg option;
+  loc : location;
+}
+(** A single variant constructor declaration. *)
+
+and variant_constructor_arg =
+  | Constr_ty of ty
+  | Constr_record of record_field_decl list
 
 (** The body of a type declaration. *)
 type ty_decl_desc =
@@ -182,13 +186,6 @@ type binop =
   | Binop_Bitwise of binop_bitwise
   | Binop_Comparison of binop_comparison
 
-(** Collection literal (list, array, map, or set). *)
-type collection =
-  | Col_List of expr list
-  | Col_Array of expr list
-  | Col_Map of (expr * expr) list
-  | Col_Set of expr list
-
 and param = {
   pattern : pattern;
   mut_flag : mut_flag;
@@ -220,7 +217,7 @@ and letdef = {
 
 and record_field = {
   id : int;
-  field_name : string;
+  field_name : ident;
   field_value : expr;
   loc : location;
 }
@@ -245,22 +242,17 @@ and expr = { id : int; expr_desc : expr_desc; loc : location }
 and expr_desc =
   | Exp_Constant of constant
   | Exp_Ident of ident
-  | Exp_Tuple of expr list
-  | Exp_Record of record_field list
-  | Exp_Collection of collection
+  | Exp_Tuple of { elements : expr list }
+  | Exp_Record of { fields : record_field list }
   | Exp_VariantConstructor of { name : ident; arg : expr option }
-  | Exp_ArrayCreate of { lambda_init : lambda; element_ty : ty; size : expr }
-  (*TODO:
-    Array_.. will be removed to have
-    Array of { size: int; elements: expr; ty:ty}
-  *)
-  | Exp_ArrayLength of expr
+  | Exp_ArrayCreate of { element_ty : ty; size : expr }
+  | Exp_ArrayLength of { arr : expr }
   | Exp_ArrayGet of { arr : expr; idx : expr }
   | Exp_ArraySet of { arr : expr; idx : expr; value : expr }
-  | Exp_UnOp of unop * expr
-  | Exp_BinOp of binop * expr * expr
-  | Exp_Ref of expr
-  | Exp_Deref of expr
+  | Exp_UnOp of { op : unop; value : expr }
+  | Exp_BinOp of { op : binop; lvalue : expr; rvalue : expr }
+  | Exp_Ref of { value : expr }
+  | Exp_Deref of { value : expr }
   | Exp_Lambda of lambda
   | Exp_Apply of { closure_fun : expr; args : expr list }
   | Exp_Let of letdef
@@ -269,33 +261,33 @@ and expr_desc =
   | Exp_If of { cond : expr; then_branch : expr; else_branch : expr option }
   | Exp_While of { cond : expr; body : expr }
   | Exp_ForIn of { iter_var : pattern; iterable : expr; body : expr }
-  | Exp_Loop of expr
-  | Exp_Break of expr option
+  | Exp_Loop of { expr : expr }
+  | Exp_Break of { expr_opt : expr option }
   | Exp_Continue
-  | Exp_Return of expr option
-  | Exp_Seq of expr list
-  | Exp_Match of expr * pattern_case list
+  | Exp_Return of { expr_opt : expr option }
+  | Exp_Seq of { exprs : expr list }
+  | Exp_Match of { expr : expr; cases : pattern_case list }
   | Exp_Field of { record : expr; field_name : ident }
   | Exp_Index of { collection : expr; index : expr }
 
 and pattern_case = {
   id : int;
   pattern : pattern;
-  when_opt : expr option;
+  when_condition : expr option;
   body : expr;
   loc : location;
 }
 (** A pattern-matching case with an optional guard. *)
 
-(** Collection pattern: list, array, map, or set. *)
-and collection_pattern_item =
-  | Pat_List of pattern list
-  | Pat_Array of pattern list
-  | Pat_Map of (pattern * pattern) list
-  | Pat_Set of pattern list
-
 and pattern = { id : int; node : pattern_desc; loc : location }
 (** A pattern node with an ID and description. *)
+
+and pattern_record_field = {
+  name : ident;
+  pattern : pattern option;
+  loc : location;
+}
+(** A single field in a record pattern. *)
 
 (** The description of a pattern. *)
 and pattern_desc =
@@ -306,11 +298,10 @@ and pattern_desc =
   | Pat_FloatLit of string
   | Pat_StringLit of string
   | Pat_Ident of ident
-  | Pat_Tuple of pattern list
-  | Pat_Record of (ident * pattern option) list
-  | Pat_Constructor of ident * pattern option
-  | Pat_Collection of collection_pattern_item * ty option
-  | Pat_Wildcard
+  | Pat_Tuple of { elements : pattern list }
+  | Pat_Record of { fields : pattern_record_field list }
+  | Pat_Constructor of { name : ident; pattern : pattern option }
+  | Pat_Any
 
 (** Descriptor for a signature item (value, type, or module). *)
 type signature_item_desc =

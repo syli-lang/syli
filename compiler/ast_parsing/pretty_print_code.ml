@@ -66,35 +66,22 @@ let rec string_of_pattern (p : pattern) : string =
   | Pat_FloatLit s -> s
   | Pat_StringLit s -> "\"" ^ String.escaped s ^ "\""
   | Pat_Ident s -> s.name
-  | Pat_Wildcard -> "_"
-  | Pat_Tuple ps ->
-      "(" ^ String.concat ", " (List.map string_of_pattern ps) ^ ")"
-  | Pat_Record fields ->
+  | Pat_Any -> "_"
+  | Pat_Tuple { elements } ->
+      "(" ^ String.concat ", " (List.map string_of_pattern elements) ^ ")"
+  | Pat_Record { fields } ->
       "{ "
       ^ String.concat ", "
           (List.map
-             (fun ((n : ident), p_opt) ->
-               match p_opt with
-               | None -> n.name
-               | Some p' -> n.name ^ " = " ^ string_of_pattern p')
+             (fun (f : pattern_record_field) ->
+               match f.pattern with
+               | None -> f.name.name
+               | Some p' -> f.name.name ^ " = " ^ string_of_pattern p')
              fields)
       ^ " }"
-  | Pat_Constructor (name, None) -> name.name
-  | Pat_Constructor (name, Some p') ->
+  | Pat_Constructor { name; pattern = None } -> name.name
+  | Pat_Constructor { name; pattern = Some p' } ->
       name.name ^ "(" ^ string_of_pattern p' ^ ")"
-  | Pat_Collection (Pat_List ps, _) ->
-      "[" ^ String.concat "; " (List.map string_of_pattern ps) ^ "]"
-  | Pat_Collection (Pat_Array ps, _) ->
-      "[" ^ String.concat ", " (List.map string_of_pattern ps) ^ "]"
-  | Pat_Collection (Pat_Set ps, _) ->
-      "{." ^ String.concat ", " (List.map string_of_pattern ps) ^ ".}"
-  | Pat_Collection (Pat_Map kvs, _) ->
-      "{:"
-      ^ String.concat ", "
-          (List.map
-             (fun (k, v) -> string_of_pattern k ^ ": " ^ string_of_pattern v)
-             kvs)
-      ^ "}"
 
 let string_of_constant (c : constant_desc) : string =
   match c with
@@ -115,29 +102,16 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
   match expr.expr_desc with
   | Exp_Constant c -> string_of_constant c.constant_desc
   | Exp_Ident idr -> idr.name
-  | Exp_Tuple exprs ->
-      "(" ^ String.concat ", " (List.map (string_of_expr ~ind) exprs) ^ ")"
-  | Exp_Record fields ->
+  | Exp_Tuple { elements } ->
+      "(" ^ String.concat ", " (List.map (string_of_expr ~ind) elements) ^ ")"
+  | Exp_Record { fields } ->
       "{ "
       ^ String.concat ", "
           (List.map
-             (fun f -> f.field_name ^ ": " ^ string_of_expr ~ind f.field_value)
+             (fun f ->
+               f.field_name.name ^ ": " ^ string_of_expr ~ind f.field_value)
              fields)
       ^ " }"
-  | Exp_Collection (Col_Array exprs) ->
-      "[" ^ String.concat ", " (List.map (string_of_expr ~ind) exprs) ^ "]"
-  | Exp_Collection (Col_List exprs) ->
-      "[" ^ String.concat "; " (List.map (string_of_expr ~ind) exprs) ^ "]"
-  | Exp_Collection (Col_Map exprs) ->
-      "{:"
-      ^ String.concat ", "
-          (List.map
-             (fun (k, v) ->
-               string_of_expr ~ind k ^ ": " ^ string_of_expr ~ind v)
-             exprs)
-      ^ "}"
-  | Exp_Collection (Col_Set exprs) ->
-      "{." ^ String.concat ", " (List.map (string_of_expr ~ind) exprs) ^ ".}"
   | Exp_VariantConstructor { name; arg } ->
       let args_str =
         match arg with
@@ -154,22 +128,22 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
       ^ indent (ind + 1)
       ^ string_of_expr ~ind:(ind + 1) body
       ^ "\n" ^ indent ind ^ "}"
-  | Exp_ArrayCreate { lambda_init = _; element_ty; size } ->
-      "array.create(lambda(...), " ^ string_of_ty element_ty ^ ", "
+  | Exp_ArrayCreate { element_ty; size } ->
+      "array.create(" ^ string_of_ty element_ty ^ ", "
       ^ string_of_expr ~ind size ^ ")"
-  | Exp_ArrayLength e -> "array.length(" ^ string_of_expr ~ind e ^ ")"
+  | Exp_ArrayLength { arr } -> "array.length(" ^ string_of_expr ~ind expr ^ ")"
   | Exp_ArrayGet { arr; idx } ->
-      "array.get(" ^ string_of_expr ~ind arr ^ ", " ^ string_of_expr ~ind idx
+      "array.get(" ^ string_of_expr ~ind expr ^ ", " ^ string_of_expr ~ind idx
       ^ ")"
   | Exp_ArraySet { arr; idx; value } ->
-      "array.set(" ^ string_of_expr ~ind arr ^ ", " ^ string_of_expr ~ind idx
+      "array.set(" ^ string_of_expr ~ind expr ^ ", " ^ string_of_expr ~ind idx
       ^ ", " ^ string_of_expr ~ind value ^ ")"
-  | Exp_UnOp (op, e) -> string_of_unop op ^ string_of_expr ~ind e
-  | Exp_Ref e -> "ref " ^ string_of_expr ~ind e
-  | Exp_Deref e -> "*" ^ string_of_expr ~ind e
-  | Exp_BinOp (op, e1, e2) ->
-      "(" ^ string_of_expr ~ind e1 ^ " " ^ string_of_binop op ^ " "
-      ^ string_of_expr ~ind e2 ^ ")"
+  | Exp_UnOp { op; value } -> string_of_unop op ^ string_of_expr ~ind value
+  | Exp_Ref { value } -> "ref " ^ string_of_expr ~ind value
+  | Exp_Deref { value } -> "*" ^ string_of_expr ~ind value
+  | Exp_BinOp { op; lvalue; rvalue } ->
+      "(" ^ string_of_expr ~ind lvalue ^ " " ^ string_of_binop op ^ " "
+      ^ string_of_expr ~ind rvalue ^ ")"
   | Exp_Apply { closure_fun; args } ->
       string_of_expr ~ind closure_fun
       ^ "("
@@ -181,9 +155,9 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
       ^ (match ld.ty_opt with None -> "" | Some t -> ": " ^ string_of_ty t)
       ^ " = "
       ^ string_of_expr ~ind ld.value
-  | Exp_Assign { target; value; _ } ->
+  | Exp_Assign { target; value } ->
       string_of_expr ~ind target ^ " = " ^ string_of_expr ~ind value
-  | Exp_AssignRef { target; value; _ } ->
+  | Exp_AssignRef { target; value } ->
       string_of_expr ~ind target ^ " := " ^ string_of_expr ~ind value
   | Exp_If { cond; then_branch; else_branch = None } ->
       "if " ^ string_of_expr ~ind cond ^ " {\n"
@@ -210,24 +184,24 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
       ^ indent (ind + 1)
       ^ string_of_expr ~ind:(ind + 1) body
       ^ "\n" ^ indent ind ^ "}"
-  | Exp_Loop body ->
+  | Exp_Loop { expr } ->
       "loop {\n"
       ^ indent (ind + 1)
-      ^ string_of_expr ~ind:(ind + 1) body
+      ^ string_of_expr ~ind:(ind + 1) expr
       ^ "\n" ^ indent ind ^ "}"
-  | Exp_Break None -> "break"
-  | Exp_Break (Some e) -> "break " ^ string_of_expr ~ind e
+  | Exp_Break { expr_opt = None } -> "break"
+  | Exp_Break { expr_opt = Some e } -> "break " ^ string_of_expr ~ind e
   | Exp_Continue -> "continue"
-  | Exp_Return None -> "return"
-  | Exp_Return (Some e) -> "return " ^ string_of_expr ~ind e
-  | Exp_Seq exprs ->
+  | Exp_Return { expr_opt = None } -> "return"
+  | Exp_Return { expr_opt = Some e } -> "return " ^ string_of_expr ~ind e
+  | Exp_Seq { exprs } ->
       "{\n"
       ^ String.concat ";\n"
           (List.map
              (fun e -> indent (ind + 1) ^ string_of_expr ~ind:(ind + 1) e)
              exprs)
       ^ "\n" ^ indent ind ^ "}"
-  | Exp_Match (scrutinee, _cases) ->
+  | Exp_Match { expr = scrutinee; _ } ->
       "match " ^ string_of_expr ~ind scrutinee ^ " { ... }"
   | Exp_Field { record; field_name } ->
       string_of_expr ~ind record ^ "." ^ field_name.name

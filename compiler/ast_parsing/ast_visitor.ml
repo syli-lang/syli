@@ -26,29 +26,16 @@ let rec visit_pattern_children (v : 'acc visitor) (acc : 'acc) (p : pattern) :
     'acc =
   match p.node with
   | Pat_Unit | Pat_BoolLit _ | Pat_IntLit _ | Pat_CharLit _ | Pat_FloatLit _
-  | Pat_StringLit _ | Pat_Ident _ | Pat_Wildcard ->
+  | Pat_StringLit _ | Pat_Ident _ | Pat_Any ->
       acc
-  | Pat_Tuple ps -> List.fold_left (v.pattern v) acc ps
-  | Pat_Record fields ->
+  | Pat_Tuple { elements } -> List.fold_left (v.pattern v) acc elements
+  | Pat_Record { fields } ->
       List.fold_left
-        (fun a (_, p_opt) -> Option.fold ~none:a ~some:(v.pattern v a) p_opt)
+        (fun a (f : pattern_record_field) ->
+          Option.fold ~none:a ~some:(v.pattern v a) f.pattern)
         acc fields
-  | Pat_Constructor (_, p_opt) ->
-      Option.fold ~none:acc ~some:(v.pattern v acc) p_opt
-  | Pat_Collection (Pat_List ps, ty_opt)
-  | Pat_Collection (Pat_Array ps, ty_opt)
-  | Pat_Collection (Pat_Set ps, ty_opt) ->
-      let acc = List.fold_left (v.pattern v) acc ps in
-      Option.fold ~none:acc ~some:(v.ty v acc) ty_opt
-  | Pat_Collection (Pat_Map kvs, ty_opt) ->
-      let acc =
-        List.fold_left
-          (fun a (k, value) ->
-            let a = v.pattern v a k in
-            v.pattern v a value)
-          acc kvs
-      in
-      Option.fold ~none:acc ~some:(v.ty v acc) ty_opt
+  | Pat_Constructor { pattern; _ } ->
+      Option.fold ~none:acc ~some:(v.pattern v acc) pattern
 
 let visit_param (v : 'acc visitor) (acc : 'acc) (p : param) : 'acc =
   let acc = v.pattern v acc p.pattern in
@@ -67,26 +54,15 @@ let visit_letdef (v : 'acc visitor) (acc : 'acc) (ld : letdef) : 'acc =
 let rec visit_expr_children (v : 'acc visitor) (acc : 'acc) (e : expr) : 'acc =
   match e.expr_desc with
   | Exp_Constant _ | Exp_Ident _ | Exp_Continue -> acc
-  | Exp_Tuple es -> List.fold_left (v.expr v) acc es
-  | Exp_Record fields ->
+  | Exp_Tuple { elements } -> List.fold_left (v.expr v) acc elements
+  | Exp_Record { fields } ->
       List.fold_left (fun a f -> v.expr v a f.field_value) acc fields
-  | Exp_Collection (Col_List es)
-  | Exp_Collection (Col_Array es)
-  | Exp_Collection (Col_Set es) ->
-      List.fold_left (v.expr v) acc es
-  | Exp_Collection (Col_Map kvs) ->
-      List.fold_left
-        (fun a (k, value) ->
-          let a = v.expr v a k in
-          v.expr v a value)
-        acc kvs
   | Exp_VariantConstructor { arg; _ } ->
       Option.fold ~none:acc ~some:(v.expr v acc) arg
-  | Exp_ArrayCreate { lambda_init; element_ty; size } ->
-      let acc = visit_lambda v acc lambda_init in
+  | Exp_ArrayCreate { element_ty; size } ->
       let acc = v.ty v acc element_ty in
       v.expr v acc size
-  | Exp_ArrayLength e1 -> v.expr v acc e1
+  | Exp_ArrayLength { arr } -> v.expr v acc arr
   | Exp_ArrayGet { arr; idx } ->
       let acc = v.expr v acc arr in
       v.expr v acc idx
@@ -94,11 +70,11 @@ let rec visit_expr_children (v : 'acc visitor) (acc : 'acc) (e : expr) : 'acc =
       let acc = v.expr v acc arr in
       let acc = v.expr v acc idx in
       v.expr v acc value
-  | Exp_UnOp (_, e1) -> v.expr v acc e1
-  | Exp_BinOp (_, l, r) ->
-      let acc = v.expr v acc l in
-      v.expr v acc r
-  | Exp_Ref e1 | Exp_Deref e1 -> v.expr v acc e1
+  | Exp_UnOp { value; _ } -> v.expr v acc value
+  | Exp_BinOp { lvalue; rvalue; _ } ->
+      let acc = v.expr v acc lvalue in
+      v.expr v acc rvalue
+  | Exp_Ref { value } | Exp_Deref { value } -> v.expr v acc value
   | Exp_Lambda lam -> visit_lambda v acc lam
   | Exp_Apply { closure_fun; args } ->
       let acc = v.expr v acc closure_fun in
@@ -118,11 +94,11 @@ let rec visit_expr_children (v : 'acc visitor) (acc : 'acc) (e : expr) : 'acc =
       let acc = v.pattern v acc iter_var in
       let acc = v.expr v acc iterable in
       v.expr v acc body
-  | Exp_Loop body -> v.expr v acc body
-  | Exp_Break e_opt | Exp_Return e_opt ->
-      Option.fold ~none:acc ~some:(v.expr v acc) e_opt
-  | Exp_Seq es -> List.fold_left (v.expr v) acc es
-  | Exp_Match (scrutinee, cases) ->
+  | Exp_Loop { expr } -> v.expr v acc expr
+  | Exp_Break { expr_opt } | Exp_Return { expr_opt } ->
+      Option.fold ~none:acc ~some:(v.expr v acc) expr_opt
+  | Exp_Seq { exprs } -> List.fold_left (v.expr v) acc exprs
+  | Exp_Match { expr = scrutinee; cases } ->
       let acc = v.expr v acc scrutinee in
       List.fold_left (v.pattern_case v) acc cases
   | Exp_Field { record; _ } -> v.expr v acc record
@@ -133,7 +109,7 @@ let rec visit_expr_children (v : 'acc visitor) (acc : 'acc) (e : expr) : 'acc =
 let visit_pattern_case_children (v : 'acc visitor) (acc : 'acc)
     (c : pattern_case) : 'acc =
   let acc = v.pattern v acc c.pattern in
-  let acc = Option.fold ~none:acc ~some:(v.expr v acc) c.when_opt in
+  let acc = Option.fold ~none:acc ~some:(v.expr v acc) c.when_condition in
   v.expr v acc c.body
 
 let visit_ty_decl (v : 'acc visitor) (acc : 'acc) (td : ty_decl) : 'acc =
@@ -143,7 +119,12 @@ let visit_ty_decl (v : 'acc visitor) (acc : 'acc) (td : ty_decl) : 'acc =
       List.fold_left (fun a f -> v.ty v a f.field_ty) acc fields
   | Tydef_Variant ctors ->
       List.fold_left
-        (fun a c -> Option.fold ~none:a ~some:(v.ty v a) c.arg)
+        (fun a c ->
+          match c.arg with
+          | None -> a
+          | Some (Constr_ty t) -> v.ty v a t
+          | Some (Constr_record fields) ->
+              List.fold_left (fun a f -> v.ty v a f.field_ty) a fields)
         acc ctors
   | Tydef_Abstract -> acc
 

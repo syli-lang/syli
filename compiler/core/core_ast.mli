@@ -1,14 +1,11 @@
 (** This module defines the core (normalized) AST types produced after
     type-checking and used by the middle-end passes. *)
 
-type span = { start_pos : int; end_pos : int }
-(** A span (start and end position) within a source file. *)
+type path = string list
+(** A dotted path of module names. *)
 
-type location = { filename : string; span : span }
-(** Source location consisting of a filename and span. *)
-
-type ident = { fullname : string; id : int; loc : location }
-(** An identifier with full name, unique ID, and location. *)
+type ident = { name : string; fullname : string; path : path; id : int }
+(** An identifier with name, full name, path, and unique ID. *)
 
 (** Mutability flag for core AST bindings. *)
 type mut_flag = CMutable | CImmutable
@@ -46,8 +43,14 @@ and ty_desc =
   | CTy_Ref of ty
   | CTy_Defined of { name : ident; args : ty list }
 
-and constructor_decl = { id : int; variant_tag : int; arg : ty option }
+and constructor_decl = {
+  id : int;
+  variant_tag : int;
+  arg : constructor_arg option;
+}
 (** A variant constructor declaration with tag number. *)
+
+and constructor_arg = Constr_ty of ty | Constr_record of record_field_ty list
 
 and record_field_ty = {
   id : int;
@@ -106,8 +109,8 @@ type binop =
   | CBinop_Bitwise of binop_bitwise
   | CBinop_Comparison of binop_comparison
 
-type expr = { id : int; node : expr_node; loc : location; ty : ty }
-(** A core expression node with ID, node kind, location, and type. *)
+type expr = { id : int; node : expr_node; ty : ty }
+(** A core expression node with ID, node kind, and type. *)
 
 and lambda = { params : ident list; body : expr; ret_ty : ty }
 (** A lambda expression in the core AST. *)
@@ -128,13 +131,13 @@ and constant =
 and expr_node =
   | CExp_Constant of constant
   | CExp_Ident of ident
-  | CExp_UnOp of unop * expr
-  | CExp_BinOp of binop * expr * expr
+  | CExp_UnOp of { op : unop; value : expr }
+  | CExp_BinOp of { op : binop; lvalue : expr; rvalue : expr }
   | CExp_Record of record_field list
   | CExp_VariantConstructor of { tag : int; arg : expr option }
   | CExp_Field of { record : expr; field_idx : int }
   | CExp_FieldSet of { record : expr; field_idx : int; value : expr }
-  | CExp_ArrayCreate of { init_fun : lambda; element_ty : ty; size : expr }
+  | CExp_ArrayCreate of { element_ty : ty; size : expr }
   | CExp_ArrayLength of expr
   | CExp_ArrayGet of { arr : expr; idx : expr }
   | CExp_ArraySet of { arr : expr; idx : expr; value : expr }
@@ -147,12 +150,29 @@ and expr_node =
   | CExp_Return of expr option
   | CExp_Seq of expr list
   | CExp_If of { cond : expr; then_branch : expr; else_branch : expr option }
-  | CExp_Switch of {
-      scrutinee : expr;
-      cases : (expr * expr) list;
-      default : expr option;
-    }
-  | CExp_GetTagVariant of expr
+  | Exp_Match of { expr : expr; cases : pattern_case list }
+
+and pattern_case = {
+  id : int;
+  pattern : pattern;
+  when_condition : expr option;
+  body : expr;
+}
+
+and pattern = { id : int; node : pattern_desc }
+and pattern_record_field = { name : ident; pattern : pattern option }
+
+and pattern_desc =
+  | Pat_Unit
+  | Pat_BoolLit of string
+  | Pat_IntLit of string
+  | Pat_CharLit of string
+  | Pat_FloatLit of string
+  | Pat_StringLit of string
+  | Pat_Ident of ident
+  | Pat_Record of pattern_record_field list
+  | Pat_Constructor of { tag : int; pattern : pattern option }
+  | Pat_Any
 
 (** Description of a core signature item. *)
 type signature_item_desc =

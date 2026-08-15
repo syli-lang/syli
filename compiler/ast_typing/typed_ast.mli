@@ -7,11 +7,8 @@ type path = string list
 type location = { start_pos : int; end_pos : int; filename : string }
 (** Source location in the input file. *)
 
-and ident = { name : string; id : int; fullname : string list; loc : location }
-(** A name with unique ID, full path, and source location. *)
-
-val dummy_loc : location
-(** A placeholder location used for synthetic nodes. *)
+and ident = { name : string; id : int; path : string list; loc : location }
+(** A name with unique ID, path, and source location. *)
 
 (** Mutability flag for typed bindings. *)
 type mut_flag = TMutable | TImmutable
@@ -53,10 +50,14 @@ and ty_desc =
 and variant_constructor_decl = {
   id : int;
   name : ident;
-  arg : ty option;
+  arg : variant_constructor_arg option;
   loc : location;
 }
 (** A variant constructor declaration in the typed AST. *)
+
+and variant_constructor_arg =
+  | Constr_ty of ty
+  | Constr_record of record_field_decl list
 
 and record_field_decl = {
   id : int;
@@ -118,13 +119,6 @@ type binop =
   | TBinop_Bitwise of binop_bitwise
   | TBinop_Comparison of binop_comparison
 
-(** A collection literal in the typed AST. *)
-type collection =
-  | TCol_List of expr list
-  | TCol_Array of expr list
-  | TCol_Map of (expr * expr) list
-  | TCol_Set of expr list
-
 and param = {
   pattern : pattern;
   mut_flag : mut_flag;
@@ -181,18 +175,17 @@ and expr = { id : int; expr_desc : expr_desc; loc : location; ty : ty }
 and expr_desc =
   | TExp_Constant of constant
   | TExp_Ident of ident
-  | TExp_Tuple of expr list
-  | TExp_Record of record_field list
-  | TExp_Collection of collection
+  | TExp_Tuple of { elements : expr list }
+  | TExp_Record of { fields : record_field list }
   | TExp_VariantConstructor of { name : ident; args : expr option }
-  | TExp_ArrayCreate of { lambda_init : lambda; element_ty : ty; size : expr }
-  | TExp_ArrayLength of expr
+  | TExp_ArrayCreate of { element_ty : ty; size : expr }
+  | TExp_ArrayLength of { arr : expr }
   | TExp_ArrayGet of { arr : expr; idx : expr }
   | TExp_ArraySet of { arr : expr; idx : expr; value : expr }
-  | TExp_UnOp of unop * expr
-  | TExp_BinOp of binop * expr * expr
-  | TExp_Ref of expr
-  | TExp_Deref of expr
+  | TExp_UnOp of { op : unop; value : expr }
+  | TExp_BinOp of { op : binop; lvalue : expr; rvalue : expr }
+  | TExp_Ref of { value : expr }
+  | TExp_Deref of { value : expr }
   | TExp_Lambda of lambda
   | TExp_Apply of { closure_fun : expr; args : expr list }
   | TExp_Let of letdef
@@ -201,34 +194,34 @@ and expr_desc =
   | TExp_If of { cond : expr; then_branch : expr; else_branch : expr option }
   | TExp_While of { cond : expr; body : expr }
   | TExp_ForIn of { iter_var : pattern; iterable : expr; body : expr }
-  | TExp_Loop of expr
-  | TExp_Break of expr option
+  | TExp_Loop of { expr : expr }
+  | TExp_Break of { expr_opt : expr option }
   | TExp_Continue
-  | TExp_Return of expr option
-  | TExp_Seq of expr list
-  | TExp_Match of expr * pattern_case list
+  | TExp_Return of { expr_opt : expr option }
+  | TExp_Seq of { exprs : expr list }
+  | TExp_Match of { expr : expr; cases : pattern_case list }
   | TExp_Field of { record : expr; field_name : string; idx : int }
   | TExp_Index of { collection : expr; index : expr }
 
 and pattern_case = {
   id : int;
   pattern : pattern;
-  when_opt : expr option;
+  when_condition : expr option;
   body : expr;
   loc : location;
   ty : ty;
 }
 (** A pattern-matching case with optional guard and inferred type. *)
 
-(** Collection pattern (list, array, map, or set). *)
-and collection_pattern_item =
-  | TPat_List of pattern list
-  | TPat_Array of pattern list
-  | TPat_Map of (pattern * pattern) list
-  | TPat_Set of pattern list
-
 and pattern = { id : int; pattern_desc : pattern_desc; loc : location; ty : ty }
 (** A pattern node with ID, description, location, and type. *)
+
+and pattern_record_field = {
+  name : ident;
+  pattern : pattern option;
+  loc : location;
+}
+(** A single field in a record pattern. *)
 
 (** The description of a typed pattern. *)
 and pattern_desc =
@@ -239,11 +232,10 @@ and pattern_desc =
   | TPat_StringLit of string
   | TPat_FloatLit of string
   | TPat_Ident of ident
-  | TPat_Tuple of pattern list
-  | TPat_Record of (string * pattern option) list
-  | TPat_Constructor of string * pattern option
-  | TPat_Collection of collection_pattern_item * ty option
-  | TPat_Wildcard
+  | TPat_Tuple of { elements : pattern list }
+  | TPat_Record of { fields : pattern_record_field list }
+  | TPat_Constructor of { ident : string; pattern : pattern option }
+  | TPat_Any
 
 (** Description of a typed signature item. *)
 type signature_item_desc =

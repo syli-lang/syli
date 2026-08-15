@@ -1,11 +1,10 @@
 open Syli_core.Core_ast
 open Syli_core.Closure_analysis
 
-let dummy_loc = { filename = "test"; span = { start_pos = 0; end_pos = 0 } }
 let unit_ty = { ty_desc = CTy_Constant CTy_Unit }
 let i64_ty = { ty_desc = CTy_Constant CTy_Int64 }
-let ident ?(id = 0) name = { fullname = name; id; loc = dummy_loc }
-let mk_expr ?(ty = unit_ty) id node = { id; node; loc = dummy_loc; ty }
+let ident ?(id = 0) name = { name; fullname = name; path = []; id }
+let mk_expr ?(ty = unit_ty) id node = { id; node; ty }
 let mk_const_unit id = mk_expr id (CExp_Constant CConst_Unit)
 let mk_const_i64 id n = mk_expr ~ty:i64_ty id (CExp_Constant (CConst_IntLit n))
 

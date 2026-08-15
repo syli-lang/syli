@@ -46,13 +46,13 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
   let acc'', node' =
     match e.node with
     | CExp_Constant _ | CExp_Ident _ | CExp_Continue -> (acc', e.node)
-    | CExp_UnOp (op, inner) ->
-        let a, inner' = t.expr t acc' inner in
-        (a, CExp_UnOp (op, inner'))
-    | CExp_BinOp (op, lhs, rhs) ->
-        let a, lhs' = t.expr t acc' lhs in
-        let a', rhs' = t.expr t a rhs in
-        (a', CExp_BinOp (op, lhs', rhs'))
+    | CExp_UnOp { op; value } ->
+        let a, value' = t.expr t acc' value in
+        (a, CExp_UnOp { op; value = value' })
+    | CExp_BinOp { op; lvalue; rvalue } ->
+        let a, lvalue' = t.expr t acc' lvalue in
+        let a', rvalue' = t.expr t a rvalue in
+        (a', CExp_BinOp { op; lvalue = lvalue'; rvalue = rvalue' })
     | CExp_VariantConstructor { tag; arg } ->
         let a, arg' =
           match arg with
@@ -79,13 +79,10 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
         let a, record' = t.expr t acc' record in
         let a', value' = t.expr t a value in
         (a', CExp_FieldSet { record = record'; field_idx; value = value' })
-    | CExp_ArrayCreate { init_fun; element_ty; size } ->
-        let a, init_fun' = transform_lambda t acc' init_fun in
-        let a', element_ty' = t.ty t a element_ty in
-        let a'', size' = t.expr t a' size in
-        ( a'',
-          CExp_ArrayCreate
-            { init_fun = init_fun'; element_ty = element_ty'; size = size' } )
+    | CExp_ArrayCreate { element_ty; size } ->
+        let a, element_ty' = t.ty t acc' element_ty in
+        let a', size' = t.expr t a size in
+        (a', CExp_ArrayCreate { element_ty = element_ty'; size = size' })
     | CExp_ArrayLength inner ->
         let a, inner' = t.expr t acc' inner in
         (a, CExp_ArrayLength inner')
@@ -153,29 +150,23 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
               then_branch = then_branch';
               else_branch = else_branch';
             } )
-    | CExp_Switch { scrutinee; cases; default } ->
+    | Exp_Match { expr = scrutinee; cases } ->
         let a, scrutinee' = t.expr t acc' scrutinee in
         let a', cases' =
           List.fold_left_map
-            (fun st (on_expr, result_expr) ->
-              let st', on_expr' = t.expr t st on_expr in
-              let st'', result_expr' = t.expr t st' result_expr in
-              (st'', (on_expr', result_expr')))
+            (fun st (c : pattern_case) ->
+              let st', when_condition' =
+                match c.when_condition with
+                | None -> (st, None)
+                | Some w ->
+                    let st'', w' = t.expr t st w in
+                    (st'', Some w')
+              in
+              let st'', body' = t.expr t st' c.body in
+              (st'', { c with when_condition = when_condition'; body = body' }))
             a cases
         in
-        let a'', default' =
-          match default with
-          | None -> (a', None)
-          | Some inner ->
-              let st, inner' = t.expr t a' inner in
-              (st, Some inner')
-        in
-        ( a'',
-          CExp_Switch
-            { scrutinee = scrutinee'; cases = cases'; default = default' } )
-    | CExp_GetTagVariant inner ->
-        let a, inner' = t.expr t acc' inner in
-        (a, CExp_GetTagVariant inner')
+        (a', Exp_Match { expr = scrutinee'; cases = cases' })
   in
   (acc'', { e with node = node'; ty = expr_ty' })
 
@@ -201,9 +192,18 @@ let transform_type_decl (t : 'acc transformer) (acc : 'acc) (td : ty_decl) :
           (fun st c ->
             match c.arg with
             | None -> (st, c)
-            | Some arg_ty ->
+            | Some (Constr_ty arg_ty) ->
                 let st', arg_ty' = t.ty t st arg_ty in
-                (st', { c with arg = Some arg_ty' }))
+                (st', { c with arg = Some (Constr_ty arg_ty') })
+            | Some (Constr_record fields) ->
+                let st', fields' =
+                  List.fold_left_map
+                    (fun st (f : record_field_ty) ->
+                      let st', field_ty' = t.ty t st f.field_ty in
+                      (st', { f with field_ty = field_ty' }))
+                    st fields
+                in
+                (st', { c with arg = Some (Constr_record fields') }))
           acc constructors
       in
       (acc', { td with def = CTydef_Variant constructors' })

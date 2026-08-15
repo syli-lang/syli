@@ -135,9 +135,9 @@ Lambda expressions:
   Parse error in test_lambda.src at line 1, column 11
   
     1 | let id = x -> x
-                    ^^^^^
+                    ^^
   
-  Unexpected token: 'ARROW'
+  Unexpected token: '->'
   
   [1]
 
@@ -150,9 +150,9 @@ Curried lambda expressions:
   Parse error in test_curried.src at line 1, column 12
   
     1 | let add = x -> y -> x + y
-                     ^^^^^
+                     ^^
   
-  Unexpected token: 'ARROW'
+  Unexpected token: '->'
   
   [1]
 
@@ -177,12 +177,15 @@ Multiple bindings:
   > let lst = [true, false, true]
   > EOF
   $ dune exec sylic typing array_list.t
-  Typed array_list.t successfully: module Array_list with 2 top-level typed items
-  Type Environment:
-  {
-    arr : forall '25. '25
-    lst : forall '27. '27
-  }
+  
+  Parse error in array_list.t at line 1, column 10
+  
+    1 | let arr = [1, 2, 3, 4]
+                   ^
+  
+  Unexpected token: '['
+  
+  [1]
 
 
 Identity function and partial application:

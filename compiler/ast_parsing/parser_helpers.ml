@@ -13,7 +13,7 @@ let mk_ty startpos endpos ty_desc : ty =
   { id = fresh_id (); ty_desc; loc = mk_loc startpos endpos }
 
 let mk_ident startpos endpos name : ident =
-  { name; id = fresh_id (); loc = mk_loc startpos endpos }
+  { name; path = []; id = fresh_id (); loc = mk_loc startpos endpos }
 
 let mk_structure_item startpos endpos structure_item_desc : structure_item =
   { id = fresh_id (); structure_item_desc; loc = mk_loc startpos endpos }
@@ -48,7 +48,13 @@ let mk_pattern startpos endpos node : pattern =
   { id = fresh_id (); node; loc = mk_loc startpos endpos }
 
 let mk_pattern_case startpos endpos pattern body when_opt : pattern_case =
-  { id = fresh_id (); pattern; when_opt; body; loc = mk_loc startpos endpos }
+  {
+    id = fresh_id ();
+    pattern;
+    when_condition = when_opt;
+    body;
+    loc = mk_loc startpos endpos;
+  }
 
 let mk_lambda startpos endpos params body ret_ty_opt : lambda =
   { params; body; ret_ty = ret_ty_opt; loc = mk_loc startpos endpos }
@@ -94,7 +100,7 @@ let mk_seq startpos endpos exprs =
       mk_expr startpos endpos
         (Exp_Constant (mk_constant startpos endpos Const_Unit))
   | [ e ] -> e
-  | _ -> mk_expr startpos endpos (Exp_Seq exprs)
+  | _ -> mk_expr startpos endpos (Exp_Seq { exprs })
 
 let mk_constructor_decl startpos endpos name arg_ty_opt :
     variant_constructor_decl =

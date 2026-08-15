@@ -28,29 +28,21 @@ let rec transform_pattern (t : transformer) (p : pattern) : pattern =
   let node =
     match p.node with
     | Pat_Unit | Pat_BoolLit _ | Pat_IntLit _ | Pat_CharLit _ | Pat_FloatLit _
-    | Pat_StringLit _ | Pat_Ident _ | Pat_Wildcard ->
+    | Pat_StringLit _ | Pat_Ident _ | Pat_Any ->
         p.node
-    | Pat_Tuple ps -> Pat_Tuple (List.map (t.pattern t) ps)
-    | Pat_Record fields ->
+    | Pat_Tuple { elements } ->
+        Pat_Tuple { elements = List.map (t.pattern t) elements }
+    | Pat_Record { fields } ->
         Pat_Record
-          (List.map
-             (fun (name, p_opt) -> (name, Option.map (t.pattern t) p_opt))
-             fields)
-    | Pat_Constructor (name, p_opt) ->
-        Pat_Constructor (name, Option.map (t.pattern t) p_opt)
-    | Pat_Collection (Pat_List ps, ty_opt) ->
-        Pat_Collection
-          (Pat_List (List.map (t.pattern t) ps), Option.map (t.ty t) ty_opt)
-    | Pat_Collection (Pat_Array ps, ty_opt) ->
-        Pat_Collection
-          (Pat_Array (List.map (t.pattern t) ps), Option.map (t.ty t) ty_opt)
-    | Pat_Collection (Pat_Set ps, ty_opt) ->
-        Pat_Collection
-          (Pat_Set (List.map (t.pattern t) ps), Option.map (t.ty t) ty_opt)
-    | Pat_Collection (Pat_Map kvs, ty_opt) ->
-        Pat_Collection
-          ( Pat_Map (List.map (fun (k, v) -> (t.pattern t k, t.pattern t v)) kvs),
-            Option.map (t.ty t) ty_opt )
+          {
+            fields =
+              List.map
+                (fun (f : pattern_record_field) ->
+                  { f with pattern = Option.map (t.pattern t) f.pattern })
+                fields;
+          }
+    | Pat_Constructor { name; pattern } ->
+        Pat_Constructor { name; pattern = Option.map (t.pattern t) pattern }
   in
   { p with node }
 
@@ -81,40 +73,31 @@ let rec transform_expr (t : transformer) (e : expr) : expr =
   let expr_desc =
     match e.expr_desc with
     | Exp_Constant _ | Exp_Ident _ | Exp_Continue -> e.expr_desc
-    | Exp_Tuple es -> Exp_Tuple (List.map (t.expr t) es)
-    | Exp_Record fields ->
+    | Exp_Tuple { elements } ->
+        Exp_Tuple { elements = List.map (t.expr t) elements }
+    | Exp_Record { fields } ->
         Exp_Record
-          (List.map
-             (fun f -> { f with field_value = t.expr t f.field_value })
-             fields)
-    | Exp_Collection (Col_List es) ->
-        Exp_Collection (Col_List (List.map (t.expr t) es))
-    | Exp_Collection (Col_Array es) ->
-        Exp_Collection (Col_Array (List.map (t.expr t) es))
-    | Exp_Collection (Col_Set es) ->
-        Exp_Collection (Col_Set (List.map (t.expr t) es))
-    | Exp_Collection (Col_Map kvs) ->
-        Exp_Collection
-          (Col_Map (List.map (fun (k, v) -> (t.expr t k, t.expr t v)) kvs))
+          {
+            fields =
+              List.map
+                (fun f -> { f with field_value = t.expr t f.field_value })
+                fields;
+          }
     | Exp_VariantConstructor { name; arg } ->
         Exp_VariantConstructor { name; arg = Option.map (t.expr t) arg }
-    | Exp_ArrayCreate { lambda_init; element_ty; size } ->
-        Exp_ArrayCreate
-          {
-            lambda_init = transform_lambda t lambda_init;
-            element_ty = t.ty t element_ty;
-            size = t.expr t size;
-          }
-    | Exp_ArrayLength e1 -> Exp_ArrayLength (t.expr t e1)
+    | Exp_ArrayCreate { element_ty; size } ->
+        Exp_ArrayCreate { element_ty = t.ty t element_ty; size = t.expr t size }
+    | Exp_ArrayLength { arr } -> Exp_ArrayLength { arr = t.expr t arr }
     | Exp_ArrayGet { arr; idx } ->
         Exp_ArrayGet { arr = t.expr t arr; idx = t.expr t idx }
     | Exp_ArraySet { arr; idx; value } ->
         Exp_ArraySet
           { arr = t.expr t arr; idx = t.expr t idx; value = t.expr t value }
-    | Exp_UnOp (op, e1) -> Exp_UnOp (op, t.expr t e1)
-    | Exp_BinOp (op, l, r) -> Exp_BinOp (op, t.expr t l, t.expr t r)
-    | Exp_Ref e1 -> Exp_Ref (t.expr t e1)
-    | Exp_Deref e1 -> Exp_Deref (t.expr t e1)
+    | Exp_UnOp { op; value } -> Exp_UnOp { op; value = t.expr t value }
+    | Exp_BinOp { op; lvalue; rvalue } ->
+        Exp_BinOp { op; lvalue = t.expr t lvalue; rvalue = t.expr t rvalue }
+    | Exp_Ref { value } -> Exp_Ref { value = t.expr t value }
+    | Exp_Deref { value } -> Exp_Deref { value = t.expr t value }
     | Exp_Lambda lam -> Exp_Lambda (transform_lambda t lam)
     | Exp_Apply { closure_fun; args } ->
         Exp_Apply
@@ -143,12 +126,15 @@ let rec transform_expr (t : transformer) (e : expr) : expr =
             iterable = t.expr t iterable;
             body = t.expr t body;
           }
-    | Exp_Loop body -> Exp_Loop (t.expr t body)
-    | Exp_Break e_opt -> Exp_Break (Option.map (t.expr t) e_opt)
-    | Exp_Return e_opt -> Exp_Return (Option.map (t.expr t) e_opt)
-    | Exp_Seq es -> Exp_Seq (List.map (t.expr t) es)
-    | Exp_Match (scrutinee, cases) ->
-        Exp_Match (t.expr t scrutinee, List.map (t.pattern_case t) cases)
+    | Exp_Loop { expr } -> Exp_Loop { expr = t.expr t expr }
+    | Exp_Break { expr_opt } ->
+        Exp_Break { expr_opt = Option.map (t.expr t) expr_opt }
+    | Exp_Return { expr_opt } ->
+        Exp_Return { expr_opt = Option.map (t.expr t) expr_opt }
+    | Exp_Seq { exprs } -> Exp_Seq { exprs = List.map (t.expr t) exprs }
+    | Exp_Match { expr; cases } ->
+        Exp_Match
+          { expr = t.expr t expr; cases = List.map (t.pattern_case t) cases }
     | Exp_Field { record; field_name } ->
         Exp_Field { record = t.expr t record; field_name }
     | Exp_Index { collection; index } ->
@@ -160,7 +146,7 @@ let transform_pattern_case (t : transformer) (c : pattern_case) : pattern_case =
   {
     c with
     pattern = t.pattern t c.pattern;
-    when_opt = Option.map (t.expr t) c.when_opt;
+    when_condition = Option.map (t.expr t) c.when_condition;
     body = t.expr t c.body;
   }
 
@@ -173,7 +159,23 @@ let transform_ty_decl (t : transformer) (td : ty_decl) : ty_decl =
           (List.map (fun f -> { f with field_ty = t.ty t f.field_ty }) fields)
     | Tydef_Variant ctors ->
         Tydef_Variant
-          (List.map (fun c -> { c with arg = Option.map (t.ty t) c.arg }) ctors)
+          (List.map
+             (fun c ->
+               {
+                 c with
+                 arg =
+                   Option.map
+                     (function
+                       | Constr_ty ty -> Constr_ty (t.ty t ty)
+                       | Constr_record fields ->
+                           Constr_record
+                             (List.map
+                                (fun f ->
+                                  { f with field_ty = t.ty t f.field_ty })
+                                fields))
+                     c.arg;
+               })
+             ctors)
     | Tydef_Abstract -> Tydef_Abstract
   in
   { td with def }

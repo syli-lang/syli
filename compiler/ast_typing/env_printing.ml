@@ -74,7 +74,16 @@ let string_of_ty_decl_desc (desc : ty_decl_desc) : string =
             let arg_str =
               match c.arg with
               | None -> ""
-              | Some ty -> " of " ^ string_of_ty ty
+              | Some (Constr_ty ty) -> " of " ^ string_of_ty ty
+              | Some (Constr_record fields) ->
+                  let field_strs =
+                    List.map
+                      (fun (f : record_field_decl) ->
+                        Printf.sprintf "%s: %s" f.field_name.name
+                          (string_of_ty f.field_ty))
+                      fields
+                  in
+                  " of { " ^ String.concat ", " field_strs ^ " }"
             in
             Printf.sprintf "%s%s" c.name.name arg_str)
           ctors
