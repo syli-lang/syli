@@ -35,7 +35,6 @@
 
 %nonassoc LT GT LEQ GEQ EQEQ
 %left AMPANDAND
-%left BAR
 %left CARET
 %left AMPAND
 %left LSHIFT RSHIFT
@@ -198,7 +197,7 @@ opt_expr:
   | expr { Some $1 }
 
 ty:
-  | name = uident
+  | name = ident
       { mk_ty $startpos $endpos (Ty_Defined { name; args = [] }) }
   | TY_INT
       { mk_ty $startpos $endpos
@@ -428,8 +427,13 @@ postfix_expr:
   | postfix_expr LBRACKET expr RBRACKET
       { mk_expr $startpos $endpos (Exp_Index { collection = $1; index = $3}) }
 
+expr_variant:
+  | name = uident atom_expr
+      { mk_expr $startpos $endpos (Exp_VariantConstructor { name; arg = Some $2 }) }
+
 unary_expr:
   | postfix_expr { $1 }
+  | expr_variant { $1 }
   | MINUS unary_expr
       { mk_expr $startpos $endpos (Exp_UnOp { op = Unop_Arithmetic Neg; value = $2}) }
   | BANG unary_expr

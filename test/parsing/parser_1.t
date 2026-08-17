@@ -306,7 +306,7 @@ type variant
   > EOF
   $ dune exec sylic parse test_variant.sy
   Parsed test_variant.sy
-  type option
+  type option = None | Some of int64
 
 pattern match
   $ cat >test_pattern.sy <<'EOF'
@@ -317,7 +317,10 @@ pattern match
   > EOF
   $ dune exec sylic parse test_pattern.sy
   Parsed test_pattern.sy
-  let m = match x { ... }
+  let m = match x {
+    | None -> 2
+    | Some -> 3
+  }
 
 pattern match
   $ cat >test_pattern.sy <<'EOF'
@@ -326,7 +329,10 @@ pattern match
   > EOF
   $ dune exec sylic parse test_pattern.sy
   Parsed test_pattern.sy
-  let m = match x { ... }
+  let m = match x {
+    | None -> 2
+    | Some -> 3
+  }
 
 
 pattern match Any
@@ -335,4 +341,25 @@ pattern match Any
   > EOF
   $ dune exec sylic parse test_pattern.sy
   Parsed test_pattern.sy
-  let m = match x { ... }
+  let m = match x {
+    | None -> 2
+    | Some(_) -> 3
+  }
+
+variant constructors and pattern match round-trip
+  $ cat >test_variant_match.sy <<'EOF'
+  > type opt = None | Some of int64
+  > type shape = Circle of { radius: double } | Rect of { w: double; h: double }
+  > let w = Simple (Other (Some 3))
+  > let r =
+  >   match Circle { radius = 1.0 } with
+  >   | Circle { radius = x } -> x
+  > EOF
+  $ dune exec sylic parse test_variant_match.sy
+  Parsed test_variant_match.sy
+  type opt = None | Some of int64
+  type shape = Circle of { radius: double } | Rect of { w: double; h: double }
+  let w = Simple(Other(Some(3)))
+  let r = match Circle({ radius: 1.0 }) {
+    | Circle({ radius = x }) -> x
+  }

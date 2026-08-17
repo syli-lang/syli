@@ -8,7 +8,8 @@ let string_of_structure_item (s : Syli_parsing.Ast.structure_item) : string =
   | Syli_parsing.Ast.Str_Fun { name; body; _ } ->
       Printf.sprintf "fn %s %s" name.name
         (Syli_parsing.Pretty_print_code.string_of_expr body)
-  | Syli_parsing.Ast.Str_TypeDef td -> "type " ^ td.name.name
+  | Syli_parsing.Ast.Str_TypeDef td ->
+      Syli_parsing.Pretty_print_ast.string_of_ty_decl td
   | Syli_parsing.Ast.Str_ModuleStruct m -> "module " ^ m.name.name
   | Syli_parsing.Ast.Str_Signature _ -> "signature"
 

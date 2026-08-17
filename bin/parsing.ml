@@ -39,7 +39,7 @@ let string_of_signature_item (si : Syli_parsing.Ast.signature_item) : string =
       | None -> "val " ^ name.name ^ " : " ^ ty_str
       | Some ext ->
           "extern " ^ name.name ^ " : " ^ ty_str ^ " = \"" ^ ext.c_name ^ "\"")
-  | Sig_Type td -> "type " ^ td.name.name
+  | Sig_Type td -> Syli_parsing.Pretty_print_ast.string_of_ty_decl td
   | Sig_Module ms -> "module " ^ ms.name.name
 
 let string_of_structure_item (item : Syli_parsing.Ast.structure_item) : string =
@@ -50,7 +50,7 @@ let string_of_structure_item (item : Syli_parsing.Ast.structure_item) : string =
   | Str_Fun { name; body; _ } ->
       "fn " ^ name.name ^ " = "
       ^ Syli_parsing.Pretty_print_ast.string_of_expr body
-  | Str_TypeDef td -> "type " ^ td.name.name
+  | Str_TypeDef td -> Syli_parsing.Pretty_print_ast.string_of_ty_decl td
   | Str_ModuleStruct m -> "module " ^ m.name.name
   | Str_Signature sigs ->
       "signature:\n"

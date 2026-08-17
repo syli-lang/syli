@@ -95,10 +95,10 @@ let string_of_record_env (record_env : ty_record_info list StringMap.t) : string
     =
   let entries =
     StringMap.bindings record_env
-    |> List.map (fun (key, infos) ->
+    |> List.map (fun ((key, infos) : string * ty_record_info list) ->
         let info_strs =
           List.map
-            (fun info ->
+            (fun (info : ty_record_info) ->
               Printf.sprintf "    %s: %s" info.ty_decl.name.name
                 (string_of_ty_decl_desc info.ty_decl.def))
             infos

@@ -174,8 +174,27 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
              (fun e -> indent (ind + 1) ^ string_of_expr ~ind:(ind + 1) e)
              exprs)
       ^ "\n" ^ indent ind ^ "}"
-  | TExp_Match { expr = scrutinee; _ } ->
-      "match " ^ string_of_expr ~ind scrutinee ^ " { ... }"
+  | TExp_Match { expr = scrutinee; cases } ->
+      let cases_str =
+        List.map
+          (fun (c : pattern_case) ->
+            let guard =
+              match c.when_condition with
+              | None -> ""
+              | Some g -> " when " ^ string_of_expr ~ind g
+            in
+            indent (ind + 1)
+            ^ "| "
+            ^ string_of_pattern c.pattern
+            ^ guard ^ " -> "
+            ^ string_of_expr ~ind:(ind + 1) c.body)
+          cases
+      in
+      "match "
+      ^ string_of_expr ~ind scrutinee
+      ^ " {\n"
+      ^ String.concat "\n" cases_str
+      ^ "\n" ^ indent ind ^ "}"
   | TExp_Field { record; field_name; _ } ->
       string_of_expr ~ind record ^ "." ^ field_name
   | TExp_Index { collection; index } ->
