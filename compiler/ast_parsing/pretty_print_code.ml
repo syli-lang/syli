@@ -4,33 +4,32 @@ let indent n = String.make (n * 2) ' '
 
 let rec string_of_ty (ty : ty) : string =
   match ty.ty_desc with
-  | Ty_Constant Ty_Int64 -> "Int64"
-  | Ty_Constant Ty_Int32 -> "Int32"
-  | Ty_Constant Ty_Int16 -> "Int16"
-  | Ty_Constant Ty_Int8 -> "Int8"
-  | Ty_Constant Ty_UInt64 -> "UInt64"
-  | Ty_Constant Ty_UInt32 -> "UInt32"
-  | Ty_Constant Ty_UInt16 -> "UInt16"
-  | Ty_Constant Ty_UInt8 -> "UInt8"
-  | Ty_Constant Ty_Bool -> "Bool"
-  | Ty_Constant Ty_Unit -> "Unit"
-  | Ty_Constant Ty_Float -> "Float"
-  | Ty_Constant Ty_Double -> "Double"
-  | Ty_Constant Ty_StringLit -> "String"
-  | Ty_Constant Ty_CharLit -> "Char"
+  | Ty_Constant Ty_Int64 -> "int64"
+  | Ty_Constant Ty_Int32 -> "int32"
+  | Ty_Constant Ty_Int16 -> "int16"
+  | Ty_Constant Ty_Int8 -> "int8"
+  | Ty_Constant Ty_UInt64 -> "uint64"
+  | Ty_Constant Ty_UInt32 -> "uint32"
+  | Ty_Constant Ty_UInt16 -> "uint16"
+  | Ty_Constant Ty_UInt8 -> "uint8"
+  | Ty_Constant Ty_Bool -> "bool"
+  | Ty_Constant Ty_Unit -> "unit"
+  | Ty_Constant Ty_Float -> "float"
+  | Ty_Constant Ty_Double -> "double"
+  | Ty_Constant Ty_StringLit -> "str"
+  | Ty_Constant Ty_CharLit -> "char"
   | Ty_Any -> "_"
   | Ty_Var s -> "'" ^ s
-  | Ty_Array ty' -> "Array[" ^ string_of_ty ty' ^ "]"
-  | Ty_Ref ty' -> "Ref<" ^ string_of_ty ty' ^ ">"
+  | Ty_Array ty' -> "array<" ^ string_of_ty ty' ^ ">"
+  | Ty_Ref ty' -> "ref<" ^ string_of_ty ty' ^ ">"
   | Ty_Tuple tys -> "(" ^ String.concat ", " (List.map string_of_ty tys) ^ ")"
   | Ty_Arrow (params, ret) ->
-      "("
-      ^ String.concat ", " (List.map string_of_ty params)
-      ^ ") -> " ^ string_of_ty ret
+      let params_str = String.concat " * " (List.map string_of_ty params) in
+      params_str ^ " -> " ^ string_of_ty ret
   | Ty_Defined { name; args } ->
       let full = name.name in
       if args = [] then full
-      else full ^ "[" ^ String.concat ", " (List.map string_of_ty args) ^ "]"
+      else full ^ "<" ^ String.concat ", " (List.map string_of_ty args) ^ ">"
 
 let string_of_unop : unop -> string = function
   | Unop_Logical Not -> "!"
@@ -46,7 +45,7 @@ let string_of_binop : binop -> string = function
   | Binop_Logical And -> "&&"
   | Binop_Logical Or -> "||"
   | Binop_Bitwise BitAnd -> "&"
-  | Binop_Bitwise BitOr -> "|"
+  | Binop_Bitwise BitOr -> "lor"
   | Binop_Bitwise BitXor -> "^"
   | Binop_Bitwise LShift -> "<<"
   | Binop_Bitwise RShift -> ">>"
@@ -106,10 +105,10 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
       "(" ^ String.concat ", " (List.map (string_of_expr ~ind) elements) ^ ")"
   | Exp_Record { fields } ->
       "{ "
-      ^ String.concat ", "
+      ^ String.concat "; "
           (List.map
              (fun f ->
-               f.field_name.name ^ ": " ^ string_of_expr ~ind f.field_value)
+               f.field_name.name ^ " = " ^ string_of_expr ~ind f.field_value)
              fields)
       ^ " }"
   | Exp_VariantConstructor { name; arg } ->
@@ -131,12 +130,12 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
   | Exp_ArrayCreate { element_ty; size } ->
       "array.create(" ^ string_of_ty element_ty ^ ", "
       ^ string_of_expr ~ind size ^ ")"
-  | Exp_ArrayLength { arr } -> "array.length(" ^ string_of_expr ~ind expr ^ ")"
+  | Exp_ArrayLength { arr } -> "array.length(" ^ string_of_expr ~ind arr ^ ")"
   | Exp_ArrayGet { arr; idx } ->
-      "array.get(" ^ string_of_expr ~ind expr ^ ", " ^ string_of_expr ~ind idx
+      "array.get(" ^ string_of_expr ~ind arr ^ ", " ^ string_of_expr ~ind idx
       ^ ")"
   | Exp_ArraySet { arr; idx; value } ->
-      "array.set(" ^ string_of_expr ~ind expr ^ ", " ^ string_of_expr ~ind idx
+      "array.set(" ^ string_of_expr ~ind arr ^ ", " ^ string_of_expr ~ind idx
       ^ ", " ^ string_of_expr ~ind value ^ ")"
   | Exp_UnOp { op; value } -> string_of_unop op ^ string_of_expr ~ind value
   | Exp_Ref { value } -> "ref " ^ string_of_expr ~ind value
@@ -226,3 +225,55 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
       string_of_expr ~ind record ^ "." ^ field_name.name
   | Exp_Index { collection; index } ->
       string_of_expr ~ind collection ^ "[" ^ string_of_expr ~ind index ^ "]"
+
+let string_of_field_decl (f : record_field_decl) : string =
+  f.field_name.name ^ ": " ^ string_of_ty f.field_ty
+
+let string_of_constructor_decl (c : variant_constructor_decl) : string =
+  match c.arg with
+  | None -> c.name.name
+  | Some (Constr_ty t) -> c.name.name ^ " of " ^ string_of_ty t
+  | Some (Constr_record fields) ->
+      c.name.name ^ " of { "
+      ^ String.concat "; " (List.map string_of_field_decl fields)
+      ^ " }"
+
+let string_of_ty_decl (td : ty_decl) : string =
+  match td.def with
+  | Tydef_Alias ty -> "type " ^ td.name.name ^ " = " ^ string_of_ty ty
+  | Tydef_Record fields ->
+      "type " ^ td.name.name ^ " = { "
+      ^ String.concat "; " (List.map string_of_field_decl fields)
+      ^ " }"
+  | Tydef_Variant ctors ->
+      "type " ^ td.name.name ^ " = "
+      ^ String.concat " | " (List.map string_of_constructor_decl ctors)
+  | Tydef_Abstract -> "type " ^ td.name.name
+
+let string_of_signature_item (si : signature_item) : string =
+  match si.signature_item_desc with
+  | Sig_Value { name; params; value_ty; external_fn } -> (
+      let ty_str =
+        if params = [] then string_of_ty value_ty
+        else
+          string_of_ty { value_ty with ty_desc = Ty_Arrow (params, value_ty) }
+      in
+      match external_fn with
+      | None -> "val " ^ name.name ^ " : " ^ ty_str
+      | Some ext ->
+          "extern " ^ name.name ^ " : " ^ ty_str ^ " = \"" ^ ext.c_name ^ "\"")
+  | Sig_Type td -> string_of_ty_decl td
+  | Sig_Module ms -> "module " ^ ms.name.name
+
+let string_of_structure_item (item : structure_item) : string =
+  match item.structure_item_desc with
+  | Str_Let ld ->
+      string_of_expr { id = item.id; expr_desc = Exp_Let ld; loc = item.loc }
+  | Str_Fun { name; body; _ } -> "fn " ^ name.name ^ " = " ^ string_of_expr body
+  | Str_TypeDef td -> string_of_ty_decl td
+  | Str_ModuleStruct m -> "module " ^ m.name.name
+  | Str_Signature sigs ->
+      "signature:\n"
+      ^ String.concat "\n"
+          (List.map (fun si -> "  " ^ string_of_signature_item si) sigs)
+      ^ "\nend"

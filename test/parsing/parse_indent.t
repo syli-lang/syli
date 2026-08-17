@@ -127,10 +127,11 @@ Closure as an argument with multiple captured variables:
   Parsed test_multi.sy
   fn main = lambda(()) {
     {
-      let add2 = if true then
-                   3
-                   else
-                   4;
+      let add2 = if true {
+        3
+      } else {
+        4
+      };
       let result2 = 4;
       result2
     }

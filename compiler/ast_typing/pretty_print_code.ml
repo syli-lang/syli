@@ -20,11 +20,10 @@ let rec string_of_ty (t : ty) : string =
   | TTy_Constant TTy_CharLit -> "char"
   | TTy_Array ty -> "array[" ^ string_of_ty ty ^ "]"
   | TTy_Ref ty -> "ref<" ^ string_of_ty ty ^ ">"
-  | TTy_Tuple tys -> "(" ^ String.concat ", " (List.map string_of_ty tys) ^ ")"
+  | TTy_Tuple tys -> "(" ^ String.concat " * " (List.map string_of_ty tys) ^ ")"
   | TTy_Arrow (params, ret) ->
-      "("
-      ^ String.concat ", " (List.map string_of_ty params)
-      ^ ") -> " ^ string_of_ty ret
+      let params_str = String.concat " -> " (List.map string_of_ty params) in
+      params_str ^ " -> " ^ string_of_ty ret
   | TTy_Var i -> "'" ^ string_of_int i
   | TTy_Defined { name; args } ->
       let base = name.name in
@@ -46,7 +45,7 @@ let string_of_binop : binop -> string = function
   | TBinop_Logical TAnd -> "&&"
   | TBinop_Logical TOr -> "||"
   | TBinop_Bitwise TBitAnd -> "&"
-  | TBinop_Bitwise TBitOr -> "|"
+  | TBinop_Bitwise TBitOr -> "lor"
   | TBinop_Bitwise TBitXor -> "^"
   | TBinop_Bitwise TLShift -> "<<"
   | TBinop_Bitwise TRShift -> ">>"
