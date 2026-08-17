@@ -262,7 +262,7 @@
     a + b
   end
   $ dune exec sylic alpha parse0.src
-  fn add#1 lambda((a#2, b#3)) {
+  fn add#1 = lambda((a#2, b#3)) {
     {
       let d#4 = 0;
       let c#5 = 0;

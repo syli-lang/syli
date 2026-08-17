@@ -281,6 +281,7 @@ and pattern_desc =
 type signature_item_desc =
   | Sig_Value of {
       name : ident;
+      (*TODO: param and value_ty need to be one entity which is value_ty*)
       params : ty list;
       value_ty : ty;
       external_fn : external_fn option;

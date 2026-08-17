@@ -4,7 +4,7 @@
 
 ## Overview
 
-Syli is a general-purpose programming language with a functional core, statically typed and Pythonic-ML-like syntax. The runtime is a based on refcount memory management system with [**ownership tag pointers**](doc/ownership.md) (release happens on only tagged pointers). The closure concept is based on a closure call graph that uses **Ball-Larus** algorithm to annotate the closure nodes in order to allow polymorphism with monomorphization.
+Syli is a general-purpose programming language with a functional core, statically typed and ML-like syntax. The runtime is a based on refcount memory management system with [**ownership tag pointers**](doc/ownership.md) (release happens on only tagged pointers). The closure concept is based on a closure call graph that uses **Ball-Larus** algorithm to annotate the closure nodes in order to allow polymorphism with monomorphization.
 
 The goal of the language is to have expressivity, low latency and high performance, It is compiled into native code.
 

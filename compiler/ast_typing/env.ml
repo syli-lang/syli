@@ -24,12 +24,18 @@ type ty_record_info = {
   ty_decl : ty_decl;
 }
 
+type ty_constructor_info = {
+  constructor : variant_constructor_decl;
+  ty_decl : ty_decl;
+}
+
 type infer_ctx = {
   env : TyEnv.t;
   subst : Subst.t;
   return_ty : ty option;
   break_ty : ty option;
   record_env : ty_record_info list StringMap.t;
+  constructor_env : ty_constructor_info list StringMap.t;
   ty_name_env : ty_decl StringMap.t;
 }
 
@@ -40,6 +46,7 @@ let empty_ctx =
     return_ty = None;
     break_ty = None;
     record_env = StringMap.empty;
+    constructor_env = StringMap.empty;
     ty_name_env = StringMap.empty;
   }
 
@@ -65,7 +72,27 @@ let register_ty_decl (ctx : infer_ctx) (td : ty_decl) : infer_ctx =
         record_env;
         ty_name_env = StringMap.add td.name.name td ctx.ty_name_env;
       }
-  | TTydef_Alias _ | TTydef_Variant _ | TTydef_Abstract -> ctx
+  | TTydef_Variant constructors ->
+      let constructor_env =
+        List.fold_left
+          (fun constructor_env (constructor : variant_constructor_decl) ->
+            match StringMap.find_opt constructor.name.name constructor_env with
+            | Some ty_constructor_infos ->
+                StringMap.add constructor.name.name
+                  ({ constructor; ty_decl = td } :: ty_constructor_infos)
+                  constructor_env
+            | None ->
+                StringMap.add constructor.name.name
+                  [ { constructor; ty_decl = td } ]
+                  constructor_env)
+          ctx.constructor_env constructors
+      in
+      {
+        ctx with
+        constructor_env;
+        ty_name_env = StringMap.add td.name.name td ctx.ty_name_env;
+      }
+  | TTydef_Alias _ | TTydef_Abstract -> ctx
 
 let find_record_by_field_names ctx field_names : ty_record_info option =
   match field_names with
@@ -84,3 +111,8 @@ let find_record_by_field_names ctx field_names : ty_record_info option =
             ty_record_infos
       | None -> None)
   | [] -> None
+
+let find_constructor_by_name ctx constr_name : ty_constructor_info option =
+  match StringMap.find_opt constr_name ctx.constructor_env with
+  | Some (constructor :: _) -> Some constructor
+  | Some [] | None -> None

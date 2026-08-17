@@ -54,7 +54,7 @@ let string_of_binop = function
   | CBinop_Logical CAnd -> "&&"
   | CBinop_Logical COr -> "||"
   | CBinop_Bitwise CBitAnd -> "&"
-  | CBinop_Bitwise CBitOr -> "|"
+  | CBinop_Bitwise CBitOr -> "lor"
   | CBinop_Bitwise CBitXor -> "^"
   | CBinop_Bitwise CLShift -> "<<"
   | CBinop_Bitwise CRShift -> ">>"

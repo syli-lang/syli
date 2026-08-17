@@ -31,12 +31,18 @@ type ty_record_info = {
   ty_decl : ty_decl;
 }
 
+type ty_constructor_info = {
+  constructor : variant_constructor_decl;
+  ty_decl : ty_decl;
+}
+
 type infer_ctx = {
   env : TyEnv.t;
   subst : Subst.t;
   return_ty : Typed_ast.ty option;
   break_ty : Typed_ast.ty option;
   record_env : ty_record_info list StringMap.t;
+  constructor_env : ty_constructor_info list StringMap.t;
   ty_name_env : Typed_ast.ty_decl StringMap.t;
 }
 (** The full inference context, threading environment, substitution, and other
@@ -50,3 +56,5 @@ val register_ty_decl : infer_ctx -> Typed_ast.ty_decl -> infer_ctx
 
 val find_record_by_field_names :
   infer_ctx -> string list -> ty_record_info option
+
+val find_constructor_by_name : infer_ctx -> string -> ty_constructor_info option
