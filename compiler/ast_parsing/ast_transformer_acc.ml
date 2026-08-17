@@ -1,4 +1,5 @@
 open Ast
+open Types
 
 type 'acc transformer = {
   ty : 'acc transformer -> 'acc -> ty -> 'acc * ty;

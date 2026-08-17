@@ -2,76 +2,11 @@
 (* Typed AST for Syli                   *)
 (* ==================================== *)
 
-type path = string list
+(* Type-building definitions (path, location, ident, ty, ty_decl, ...) are
+   shared with the parsing AST, see [Syli_parsing.Types]. *)
+include Syli_parsing.Types
 
-type location = { start_pos : int; end_pos : int; filename : string }
-and ident = { name : string; id : int; path : string list; loc : location }
-
-type mut_flag = TMutable | TImmutable
 type rec_flag = TRecursive | TNonRecursive
-
-type constant_ty =
-  | TTy_Int8
-  | TTy_Int16
-  | TTy_Int32
-  | TTy_Int64
-  | TTy_UInt8
-  | TTy_UInt16
-  | TTy_UInt32
-  | TTy_UInt64
-  | TTy_Bool
-  | TTy_Unit
-  | TTy_Float
-  | TTy_Double
-  | TTy_StringLit
-  | TTy_CharLit
-
-type ty = { ty_desc : ty_desc }
-
-and ty_desc =
-  | TTy_Var of int
-  | TTy_Any
-  | TTy_Constant of constant_ty
-  | TTy_Arrow of ty list * ty
-  | TTy_Tuple of ty list
-  | TTy_Array of ty
-  | TTy_Ref of ty
-  | TTy_Defined of { name : ident; args : ty list }
-
-and variant_constructor_decl = {
-  id : int;
-  name : ident;
-  arg : variant_constructor_arg option;
-  loc : location;
-}
-
-and variant_constructor_arg =
-  | Constr_ty of ty
-  | Constr_record of record_field_decl list
-
-and record_field_decl = {
-  id : int;
-  field_name : ident;
-  field_ty : ty;
-  field_mut : mut_flag;
-  loc : location;
-}
-
-type ty_decl_desc =
-  | TTydef_Alias of ty
-  | TTydef_Record of record_field_decl list
-  | TTydef_Variant of variant_constructor_decl list
-  | TTydef_Abstract
-
-type ty_decl = {
-  id : int;
-  name : ident;
-  params : ident list;
-  def : ty_decl_desc;
-  annotations : string list;
-  loc : location;
-}
-
 type unop_logical = TNot
 type unop_arithmetic = TNeg
 type unop_bitwise = TBitNot

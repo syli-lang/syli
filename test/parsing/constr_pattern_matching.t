@@ -73,12 +73,11 @@ variant constructors and pattern match and when condition
   >   | Circle { radius = x } when s == 0 -> x
   > EOF
   $ dune exec sylic parse test_variant_match.sy
-  
-  Parse error in test_variant_match.sy at line 7, column 26
-  
-    7 |   | Circle { radius = x } when s == 0 -> x
-                                   ^^^^^^^^^^^
-  
-  Unexpected token: 'IDENT(when)'
-  
-  [1]
+  Parsed test_variant_match.sy
+  type opt = None | Some of int64
+  type shape = Circle of { radius: double } | Rect of { w: double; h: double }
+  let w = Simple(Other(Some(3)))
+  let s = 0
+  let r = match Circle({ radius = 1.0 }) {
+    | Circle({ radius = x }) when (s == 0) -> x
+  }

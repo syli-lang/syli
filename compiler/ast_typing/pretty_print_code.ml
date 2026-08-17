@@ -4,32 +4,33 @@ let indent n = String.make (n * 2) ' '
 
 let rec string_of_ty (t : ty) : string =
   match t.ty_desc with
-  | TTy_Constant TTy_Int64 -> "int64"
-  | TTy_Constant TTy_Int32 -> "int32"
-  | TTy_Constant TTy_Int16 -> "int16"
-  | TTy_Constant TTy_Int8 -> "int8"
-  | TTy_Constant TTy_UInt64 -> "uint64"
-  | TTy_Constant TTy_UInt32 -> "uint32"
-  | TTy_Constant TTy_UInt16 -> "uint16"
-  | TTy_Constant TTy_UInt8 -> "uint8"
-  | TTy_Constant TTy_Bool -> "bool"
-  | TTy_Constant TTy_Unit -> "unit"
-  | TTy_Constant TTy_Float -> "float"
-  | TTy_Constant TTy_Double -> "double"
-  | TTy_Constant TTy_StringLit -> "str"
-  | TTy_Constant TTy_CharLit -> "char"
-  | TTy_Array ty -> "array[" ^ string_of_ty ty ^ "]"
-  | TTy_Ref ty -> "ref<" ^ string_of_ty ty ^ ">"
-  | TTy_Tuple tys -> "(" ^ String.concat " * " (List.map string_of_ty tys) ^ ")"
-  | TTy_Arrow (params, ret) ->
+  | Ty_Constant Ty_Int64 -> "int64"
+  | Ty_Constant Ty_Int32 -> "int32"
+  | Ty_Constant Ty_Int16 -> "int16"
+  | Ty_Constant Ty_Int8 -> "int8"
+  | Ty_Constant Ty_UInt64 -> "uint64"
+  | Ty_Constant Ty_UInt32 -> "uint32"
+  | Ty_Constant Ty_UInt16 -> "uint16"
+  | Ty_Constant Ty_UInt8 -> "uint8"
+  | Ty_Constant Ty_Bool -> "bool"
+  | Ty_Constant Ty_Unit -> "unit"
+  | Ty_Constant Ty_Float -> "float"
+  | Ty_Constant Ty_Double -> "double"
+  | Ty_Constant Ty_StringLit -> "str"
+  | Ty_Constant Ty_CharLit -> "char"
+  | Ty_Array ty -> "array[" ^ string_of_ty ty ^ "]"
+  | Ty_Ref ty -> "ref<" ^ string_of_ty ty ^ ">"
+  | Ty_Tuple tys -> "(" ^ String.concat " * " (List.map string_of_ty tys) ^ ")"
+  | Ty_Arrow (params, ret) ->
       let params_str = String.concat " -> " (List.map string_of_ty params) in
       params_str ^ " -> " ^ string_of_ty ret
-  | TTy_Var i -> "'" ^ string_of_int i
-  | TTy_Defined { name; args } ->
+  | Ty_Var { variable = Some i; _ } -> "'" ^ string_of_int i
+  | Ty_Var { label; variable = None } -> "'" ^ label
+  | Ty_Defined { name; args } ->
       let base = name.name in
       if args = [] then base
       else base ^ "[" ^ String.concat ", " (List.map string_of_ty args) ^ "]"
-  | TTy_Any -> "_"
+  | Ty_Any -> "_"
 
 let string_of_unop : unop -> string = function
   | TUnop_Logical TNot -> "!"

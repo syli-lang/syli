@@ -13,14 +13,14 @@ type 'acc visitor = {
 
 let rec visit_ty_children (v : 'acc visitor) (acc : 'acc) (ty : ty) : 'acc =
   match ty.ty_desc with
-  | TTy_Var _ | TTy_Any | TTy_Constant _ -> acc
-  | TTy_Array inner -> v.ty v acc inner
-  | TTy_Ref inner -> v.ty v acc inner
-  | TTy_Tuple tys -> List.fold_left (v.ty v) acc tys
-  | TTy_Arrow (params, ret) ->
+  | Ty_Var _ | Ty_Any | Ty_Constant _ -> acc
+  | Ty_Array inner -> v.ty v acc inner
+  | Ty_Ref inner -> v.ty v acc inner
+  | Ty_Tuple tys -> List.fold_left (v.ty v) acc tys
+  | Ty_Arrow (params, ret) ->
       let acc = List.fold_left (v.ty v) acc params in
       v.ty v acc ret
-  | TTy_Defined { args; _ } -> List.fold_left (v.ty v) acc args
+  | Ty_Defined { args; _ } -> List.fold_left (v.ty v) acc args
 
 let rec visit_pattern_children (v : 'acc visitor) (acc : 'acc) (p : pattern) :
     'acc =
@@ -114,10 +114,10 @@ let visit_pattern_case_children (v : 'acc visitor) (acc : 'acc)
 
 let visit_ty_decl (v : 'acc visitor) (acc : 'acc) (td : ty_decl) : 'acc =
   match td.def with
-  | TTydef_Alias ty -> v.ty v acc ty
-  | TTydef_Record fields ->
+  | Tydef_Alias ty -> v.ty v acc ty
+  | Tydef_Record fields ->
       List.fold_left (fun a f -> v.ty v a f.field_ty) acc fields
-  | TTydef_Variant ctors ->
+  | Tydef_Variant ctors ->
       List.fold_left
         (fun a c ->
           match c.arg with
@@ -126,7 +126,7 @@ let visit_ty_decl (v : 'acc visitor) (acc : 'acc) (td : ty_decl) : 'acc =
           | Some (Constr_record fields) ->
               List.fold_left (fun a f -> v.ty v a f.field_ty) a fields)
         acc ctors
-  | TTydef_Abstract -> acc
+  | Tydef_Abstract -> acc
 
 let visit_signature_item_children (v : 'acc visitor) (acc : 'acc)
     (s : signature_item) : 'acc =

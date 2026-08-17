@@ -133,16 +133,16 @@ let collect_field_indices (prog : program) : field_ctx =
       ty =
         (fun t env ty ->
           match ty.ty_desc with
-          | TTy_Defined _ -> default_ty t env ty
-          | TTy_Constant _ | TTy_Var _ | TTy_Any | TTy_Arrow _ | TTy_Tuple _
-          | TTy_Array _ | TTy_Ref _ ->
+          | Ty_Defined _ -> default_ty t env ty
+          | Ty_Constant _ | Ty_Var _ | Ty_Any | Ty_Arrow _ | Ty_Tuple _
+          | Ty_Array _ | Ty_Ref _ ->
               default_ty t env ty);
       structure_item =
         (fun v env si ->
           match si.structure_item_desc with
           | TStr_TypeDef td -> (
               match td.def with
-              | TTydef_Record fields ->
+              | Tydef_Record fields ->
                   let _ =
                     List.mapi
                       (fun i (f : record_field_decl) ->

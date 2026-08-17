@@ -1,89 +1,12 @@
 (** This module defines the typed AST types produced by the type-checking pass
     and consumed by the lowering passes. *)
 
-type path = string list
-(** A dotted path of module names. *)
-
-type location = { start_pos : int; end_pos : int; filename : string }
-(** Source location in the input file. *)
-
-and ident = { name : string; id : int; path : string list; loc : location }
-(** A name with unique ID, path, and source location. *)
-
-(** Mutability flag for typed bindings. *)
-type mut_flag = TMutable | TImmutable
+(* Type-building definitions (path, location, ident, ty, ty_decl, ...) are
+   shared with the parsing AST, see [Syli_parsing.Types]. *)
+include module type of Syli_parsing.Types
 
 (** Recursion flag for typed let-bindings. *)
 type rec_flag = TRecursive | TNonRecursive
-
-(** Primitive constant types in the typed AST. *)
-type constant_ty =
-  | TTy_Int8
-  | TTy_Int16
-  | TTy_Int32
-  | TTy_Int64
-  | TTy_UInt8
-  | TTy_UInt16
-  | TTy_UInt32
-  | TTy_UInt64
-  | TTy_Bool
-  | TTy_Unit
-  | TTy_Float
-  | TTy_Double
-  | TTy_StringLit
-  | TTy_CharLit
-
-type ty = { ty_desc : ty_desc }
-(** A type node in the typed AST. *)
-
-(** The description of a typed type. *)
-and ty_desc =
-  | TTy_Var of int
-  | TTy_Any
-  | TTy_Constant of constant_ty
-  | TTy_Arrow of ty list * ty
-  | TTy_Tuple of ty list
-  | TTy_Array of ty
-  | TTy_Ref of ty
-  | TTy_Defined of { name : ident; args : ty list }
-
-and variant_constructor_decl = {
-  id : int;
-  name : ident;
-  arg : variant_constructor_arg option;
-  loc : location;
-}
-(** A variant constructor declaration in the typed AST. *)
-
-and variant_constructor_arg =
-  | Constr_ty of ty
-  | Constr_record of record_field_decl list
-
-and record_field_decl = {
-  id : int;
-  field_name : ident;
-  field_ty : ty;
-  field_mut : mut_flag;
-  loc : location;
-}
-(** A record field declaration in the typed AST. *)
-
-(** Description of a type declaration body. *)
-type ty_decl_desc =
-  | TTydef_Alias of ty
-  | TTydef_Record of record_field_decl list
-  | TTydef_Variant of variant_constructor_decl list
-  | TTydef_Abstract
-
-type ty_decl = {
-  id : int;
-  name : ident;
-  params : ident list;
-  def : ty_decl_desc;
-  annotations : string list;
-  loc : location;
-}
-(** A full type declaration in the typed AST. *)
 
 (** Logical negation unary operator. *)
 type unop_logical = TNot
