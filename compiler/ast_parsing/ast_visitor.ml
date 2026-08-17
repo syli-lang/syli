@@ -1,4 +1,5 @@
 open Ast
+open Types
 
 type 'acc visitor = {
   ty : 'acc visitor -> 'acc -> ty -> 'acc;

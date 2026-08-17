@@ -3,7 +3,7 @@
     traversal. *)
 
 type 'acc transformer = {
-  ty : 'acc transformer -> 'acc -> Ast.ty -> 'acc * Ast.ty;
+  ty : 'acc transformer -> 'acc -> Types.ty -> 'acc * Types.ty;
   expr : 'acc transformer -> 'acc -> Ast.expr -> 'acc * Ast.expr;
   pattern : 'acc transformer -> 'acc -> Ast.pattern -> 'acc * Ast.pattern;
   pattern_case :
@@ -24,7 +24,7 @@ type 'acc transformer = {
     'acc * Ast.module_structure;
 }
 
-val transform_ty : 'acc transformer -> 'acc -> Ast.ty -> 'acc * Ast.ty
+val transform_ty : 'acc transformer -> 'acc -> Types.ty -> 'acc * Types.ty
 
 val transform_pattern :
   'acc transformer -> 'acc -> Ast.pattern -> 'acc * Ast.pattern
@@ -43,7 +43,7 @@ val transform_pattern_case :
   'acc transformer -> 'acc -> Ast.pattern_case -> 'acc * Ast.pattern_case
 
 val transform_ty_decl :
-  'acc transformer -> 'acc -> Ast.ty_decl -> 'acc * Ast.ty_decl
+  'acc transformer -> 'acc -> Types.ty_decl -> 'acc * Types.ty_decl
 
 val transform_signature_item :
   'acc transformer -> 'acc -> Ast.signature_item -> 'acc * Ast.signature_item
@@ -63,7 +63,7 @@ val transform_module_structure :
   Ast.module_structure ->
   'acc * Ast.module_structure
 
-val default_ty : 'acc transformer -> 'acc -> Ast.ty -> 'acc * Ast.ty
+val default_ty : 'acc transformer -> 'acc -> Types.ty -> 'acc * Types.ty
 val default_expr : 'acc transformer -> 'acc -> Ast.expr -> 'acc * Ast.expr
 
 val default_pattern :
@@ -96,7 +96,7 @@ val apply_expr : 'acc transformer -> 'acc -> Ast.expr -> 'acc * Ast.expr
 val apply_pattern :
   'acc transformer -> 'acc -> Ast.pattern -> 'acc * Ast.pattern
 
-val apply_ty : 'acc transformer -> 'acc -> Ast.ty -> 'acc * Ast.ty
+val apply_ty : 'acc transformer -> 'acc -> Types.ty -> 'acc * Types.ty
 
 val apply_pattern_case :
   'acc transformer -> 'acc -> Ast.pattern_case -> 'acc * Ast.pattern_case

@@ -71,6 +71,7 @@ rule token = parse
   | "signature" { SIGNATURE }
   | "rec"       { REC }
   | "ref"       { REF }
+  | "when"      { WHEN }
   
   (* --- Types --- *)
   | "str"       { TY_STR }

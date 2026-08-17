@@ -104,6 +104,7 @@ let string_of_token = function
   | EXTERN -> "EXTERN"
   | REC -> "REC"
   | REF -> "REF"
+  | WHEN -> "WHEN"
 
 let parse_file filename =
   let ic = open_in filename in

@@ -1,4 +1,5 @@
 open Ast
+open Types
 
 let mk_loc startpos endpos =
   let start_pos = startpos.Lexing.pos_cnum in

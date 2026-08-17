@@ -121,3 +121,21 @@ applying a constructed variant value
   $ dune exec sylic typing test_ctor_apply.sy
   Fatal error: exception Syli_typing__Env.Type_error("variant constructor 'Some' is not a function")
   [2]
+
+variant constructors and pattern match and when condition
+TODO: fix the type of 'x'
+  $ cat >test_variant_match.sy <<'EOF'
+  > type shape = Circle of { radius: double } | Rect of { w: double; h: double }
+  > let s = 0
+  > let r =
+  >   match Circle { radius = 1.0 } with
+  >   | Circle { radius = x } when s == 0 -> x
+  > EOF
+  $ dune exec sylic typing test_variant_match.sy
+  Typed test_variant_match.sy successfully: module Test_variant_match with 3 top-level typed items
+  Type Environment:
+  {
+    r : double
+    s : int64
+    x : '51
+  }

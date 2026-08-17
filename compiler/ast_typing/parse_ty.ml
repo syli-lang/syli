@@ -1,9 +1,10 @@
 open Syli_parsing.Ast
+open Syli_parsing.Types
 open Typed_ast
 open Env
 open Infer_helpers
 
-let const_ty_of_parsing (c : Syli_parsing.Ast.constant_ty) : constant_ty =
+let const_ty_of_parsing (c : Syli_parsing.Types.constant_ty) : constant_ty =
   match c with
   | Ty_Int8 -> TTy_Int8
   | Ty_Int16 -> TTy_Int16
@@ -20,20 +21,21 @@ let const_ty_of_parsing (c : Syli_parsing.Ast.constant_ty) : constant_ty =
   | Ty_StringLit -> TTy_StringLit
   | Ty_CharLit -> TTy_CharLit
 
-let loc_of_parsing (loc : Syli_parsing.Ast.location) : location =
+let loc_of_parsing (loc : Syli_parsing.Types.location) : location =
   { start_pos = loc.start_pos; end_pos = loc.end_pos; filename = loc.filename }
 
-let ident_of_parsing (id : Syli_parsing.Ast.ident) : ident =
+let ident_of_parsing (id : Syli_parsing.Types.ident) : ident =
   { name = id.name; id = id.id; path = []; loc = loc_of_parsing id.loc }
 
 let mk_ty ty_desc = { ty_desc }
 
-let rec ty_of_parsing (ctx : Env.infer_ctx) (t : Syli_parsing.Ast.ty) :
+let rec ty_of_parsing (ctx : Env.infer_ctx) (t : Syli_parsing.Types.ty) :
     Env.infer_ctx * ty =
   match t.ty_desc with
   | Ty_Any -> (ctx, mk_ty TTy_Any)
   | Ty_Constant c -> (ctx, mk_ty @@ TTy_Constant (const_ty_of_parsing c))
-  | Ty_Var _ -> Infer_helpers.fresh_ty ctx
+  | Ty_Var { variable = Some v; _ } -> (ctx, mk_ty (TTy_Var v))
+  | Ty_Var { variable = None; _ } -> Infer_helpers.fresh_ty ctx
   | Ty_Tuple elems ->
       let ctx, elems = List.fold_left_map ty_of_parsing ctx elems in
       (ctx, mk_ty @@ TTy_Tuple elems)
@@ -100,8 +102,8 @@ let field_mut_of_parsing = function
   | Mutable -> TMutable
   | Immutable -> TImmutable
 
-let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
-    : Env.infer_ctx * ty_decl =
+let rec ty_decl_of_parsing (ctx : Env.infer_ctx)
+    (td : Syli_parsing.Types.ty_decl) : Env.infer_ctx * ty_decl =
   let loc = loc_of_parsing td.loc in
   let ctx, def =
     match td.def with
@@ -111,7 +113,7 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
     | Tydef_Record fields ->
         let ctx, fields =
           List.fold_left_map
-            (fun ctx (f : Syli_parsing.Ast.record_field_decl) ->
+            (fun ctx (f : Syli_parsing.Types.record_field_decl) ->
               let ctx, field_ty = ty_of_parsing ctx f.field_ty in
               ( ctx,
                 {
@@ -127,17 +129,17 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
     | Tydef_Variant ctors ->
         let ctx, ctors =
           List.fold_left_map
-            (fun ctx (c : Syli_parsing.Ast.variant_constructor_decl) ->
+            (fun ctx (c : Syli_parsing.Types.variant_constructor_decl) ->
               let ctx, arg =
                 match c.arg with
                 | None -> (ctx, None)
-                | Some (Syli_parsing.Ast.Constr_ty t) ->
+                | Some (Syli_parsing.Types.Constr_ty t) ->
                     let ctx, t = ty_of_parsing ctx t in
                     (ctx, Some (Constr_ty t))
-                | Some (Syli_parsing.Ast.Constr_record fields) ->
+                | Some (Syli_parsing.Types.Constr_record fields) ->
                     let ctx, fields =
                       List.fold_left_map
-                        (fun ctx (f : Syli_parsing.Ast.record_field_decl) ->
+                        (fun ctx (f : Syli_parsing.Types.record_field_decl) ->
                           let ctx, field_ty = ty_of_parsing ctx f.field_ty in
                           ( ctx,
                             {
@@ -173,7 +175,7 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
           td.params;
       def;
       annotations =
-        List.map (fun (a : Syli_parsing.Ast.ident) -> a.name) td.annotations;
+        List.map (fun (a : Syli_parsing.Types.ident) -> a.name) td.annotations;
       loc;
     } )
 

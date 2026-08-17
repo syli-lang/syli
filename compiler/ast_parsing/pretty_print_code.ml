@@ -1,4 +1,5 @@
 open Ast
+open Types
 
 let indent n = String.make (n * 2) ' '
 
@@ -19,7 +20,7 @@ let rec string_of_ty (ty : ty) : string =
   | Ty_Constant Ty_StringLit -> "str"
   | Ty_Constant Ty_CharLit -> "char"
   | Ty_Any -> "_"
-  | Ty_Var s -> "'" ^ s
+  | Ty_Var { label; _ } -> "'" ^ label
   | Ty_Array ty' -> "array<" ^ string_of_ty ty' ^ ">"
   | Ty_Ref ty' -> "ref<" ^ string_of_ty ty' ^ ">"
   | Ty_Tuple tys -> "(" ^ String.concat ", " (List.map string_of_ty tys) ^ ")"
@@ -107,7 +108,7 @@ let rec string_of_expr ?(ind = 0) (expr : expr) : string =
       "{ "
       ^ String.concat "; "
           (List.map
-             (fun f ->
+             (fun (f : record_field) ->
                f.field_name.name ^ " = " ^ string_of_expr ~ind f.field_value)
              fields)
       ^ " }"

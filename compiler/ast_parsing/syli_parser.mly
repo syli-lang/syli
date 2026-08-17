@@ -1,6 +1,7 @@
 %{
   open Parser_helpers
   open Ast
+  open Types
 %}
 
 %token <string> INT
@@ -12,7 +13,7 @@
 %token TY_INT TY_FLOAT TY_DOUBLE TY_CHAR TY_BOOL TY_UNIT TY_STR TY_ARRAY TY_LIST TY_TUPLE
 %token REC FN LET RETURN IF ELSE ELSEIF THEN
 %token VAL EXTERN SIGNATURE
-%token WHILE LOOP DO END LOCAL CONTINUE BREAK LAMBDA MATCH WITH TYPE OF MUTABLE REF
+%token WHILE LOOP DO END LOCAL CONTINUE BREAK LAMBDA MATCH WITH TYPE OF MUTABLE REF WHEN
 %token LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE LBRACKET_BAR RBRACKET_BAR
 %token COMMA SEMI COLON COLON_EQ NEWLINE DOT ARROW
 %token EQ PLUS_EQ MINUS_EQ PLUS MINUS STAR PERCENT SLASH
@@ -29,9 +30,9 @@
 
 %type <Ast.expr> expr
 %type <Ast.param list> params
-%type <Ast.ty> ty
-%type <Ast.ty_decl> type_def
-%type <Ast.variant_constructor_decl> ty_constructor_decl
+%type <Types.ty> ty
+%type <Types.ty_decl> type_def
+%type <Types.variant_constructor_decl> ty_constructor_decl
 
 %nonassoc LT GT LEQ GEQ EQEQ
 %left AMPANDAND
@@ -368,6 +369,8 @@ uident_atomic:
 pattern_case:
   | pattern ARROW cond_sequence
       { mk_pattern_case $startpos $endpos $1 $3 None }
+  | pattern WHEN expr ARROW cond_sequence
+      { mk_pattern_case $startpos $endpos $1 $5 (Some $3) }
 
 match_pattern:
   | {[]}

@@ -457,8 +457,8 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
                 pattern = pp;
                 mut_flag =
                   (match p.mut_flag with
-                  | Parsing_ast.Mutable -> TMutable
-                  | Parsing_ast.Immutable -> TImmutable);
+                  | Syli_parsing.Types.Mutable -> TMutable
+                  | Syli_parsing.Types.Immutable -> TImmutable);
                 param_ty = Some pty;
                 loc = param_loc;
               }

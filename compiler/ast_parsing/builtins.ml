@@ -8,6 +8,7 @@
 *)
 
 open Ast
+open Types
 open Syli_common
 
 type builtin = {
