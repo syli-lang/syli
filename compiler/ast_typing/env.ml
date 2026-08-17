@@ -52,7 +52,7 @@ let empty_ctx =
 
 let register_ty_decl (ctx : infer_ctx) (td : ty_decl) : infer_ctx =
   match td.def with
-  | TTydef_Record fields ->
+  | Tydef_Record fields ->
       let record_env =
         List.fold_left
           (fun record_env (field : record_field_decl) ->
@@ -72,7 +72,7 @@ let register_ty_decl (ctx : infer_ctx) (td : ty_decl) : infer_ctx =
         record_env;
         ty_name_env = StringMap.add td.name.name td ctx.ty_name_env;
       }
-  | TTydef_Variant constructors ->
+  | Tydef_Variant constructors ->
       let constructor_env =
         List.fold_left
           (fun constructor_env (constructor : variant_constructor_decl) ->
@@ -92,7 +92,7 @@ let register_ty_decl (ctx : infer_ctx) (td : ty_decl) : infer_ctx =
         constructor_env;
         ty_name_env = StringMap.add td.name.name td ctx.ty_name_env;
       }
-  | TTydef_Alias _ | TTydef_Abstract -> ctx
+  | Tydef_Alias _ | Tydef_Abstract -> ctx
 
 let find_record_by_field_names ctx field_names : ty_record_info option =
   match field_names with

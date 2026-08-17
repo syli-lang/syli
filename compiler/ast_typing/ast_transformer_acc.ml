@@ -18,27 +18,27 @@ type 'acc transformer = {
 
 let rec transform_ty (t : 'acc transformer) (acc : 'acc) (ty : ty) : 'acc * ty =
   match ty.ty_desc with
-  | TTy_Var _ | TTy_Any | TTy_Constant _ -> (acc, ty)
-  | TTy_Array inner ->
+  | Ty_Var _ | Ty_Any | Ty_Constant _ -> (acc, ty)
+  | Ty_Array inner ->
       let acc', inner' = t.ty t acc inner in
-      (acc', { ty_desc = TTy_Array inner' })
-  | TTy_Ref inner ->
+      (acc', { ty with ty_desc = Ty_Array inner' })
+  | Ty_Ref inner ->
       let acc', inner' = t.ty t acc inner in
-      (acc', { ty_desc = TTy_Ref inner' })
-  | TTy_Tuple tys ->
+      (acc', { ty with ty_desc = Ty_Ref inner' })
+  | Ty_Tuple tys ->
       let acc', tys' = List.fold_left_map (fun a ty' -> t.ty t a ty') acc tys in
-      (acc', { ty_desc = TTy_Tuple tys' })
-  | TTy_Arrow (params, ret) ->
+      (acc', { ty with ty_desc = Ty_Tuple tys' })
+  | Ty_Arrow (params, ret) ->
       let acc', params' =
         List.fold_left_map (fun a ty' -> t.ty t a ty') acc params
       in
       let acc'', ret' = t.ty t acc' ret in
-      (acc'', { ty_desc = TTy_Arrow (params', ret') })
-  | TTy_Defined ({ args; _ } as defined) ->
+      (acc'', { ty with ty_desc = Ty_Arrow (params', ret') })
+  | Ty_Defined ({ args; _ } as defined) ->
       let acc', args' =
         List.fold_left_map (fun a ty' -> t.ty t a ty') acc args
       in
-      (acc', { ty_desc = TTy_Defined { defined with args = args' } })
+      (acc', { ty with ty_desc = Ty_Defined { defined with args = args' } })
 
 let rec transform_pattern (t : 'acc transformer) (acc : 'acc) (p : pattern) :
     'acc * pattern =
@@ -321,10 +321,10 @@ let transform_pattern_case (t : 'acc transformer) (acc : 'acc)
 let transform_ty_decl (t : 'acc transformer) (acc : 'acc) (td : ty_decl) :
     'acc * ty_decl =
   match td.def with
-  | TTydef_Alias ty ->
+  | Tydef_Alias ty ->
       let acc', ty' = t.ty t acc ty in
-      (acc', { td with def = TTydef_Alias ty' })
-  | TTydef_Record fields ->
+      (acc', { td with def = Tydef_Alias ty' })
+  | Tydef_Record fields ->
       let acc', fields' =
         List.fold_left_map
           (fun a f ->
@@ -332,8 +332,8 @@ let transform_ty_decl (t : 'acc transformer) (acc : 'acc) (td : ty_decl) :
             (a', { f with field_ty = ty' }))
           acc fields
       in
-      (acc', { td with def = TTydef_Record fields' })
-  | TTydef_Variant ctors ->
+      (acc', { td with def = Tydef_Record fields' })
+  | Tydef_Variant ctors ->
       let acc', ctors' =
         List.fold_left_map
           (fun a c ->
@@ -356,8 +356,8 @@ let transform_ty_decl (t : 'acc transformer) (acc : 'acc) (td : ty_decl) :
             (a', { c with arg = arg' }))
           acc ctors
       in
-      (acc', { td with def = TTydef_Variant ctors' })
-  | TTydef_Abstract -> (acc, td)
+      (acc', { td with def = Tydef_Variant ctors' })
+  | Tydef_Abstract -> (acc, td)
 
 let transform_signature_item (t : 'acc transformer) (acc : 'acc)
     (s : signature_item) : 'acc * signature_item =

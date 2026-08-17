@@ -1,12 +1,8 @@
 (** This module provides conversions from the parsed AST ([Syli_parsing.Ast]) to
     the typed AST ([Typed_ast]). *)
 
-val const_ty_of_parsing :
-  Syli_parsing.Types.constant_ty -> Typed_ast.constant_ty
-
 val loc_of_parsing : Syli_parsing.Types.location -> Typed_ast.location
 val ident_of_parsing : Syli_parsing.Types.ident -> Typed_ast.ident
-val mk_ty : Typed_ast.ty_desc -> Typed_ast.ty
 
 val ty_of_parsing :
   Env.infer_ctx -> Syli_parsing.Types.ty -> Env.infer_ctx * Typed_ast.ty
@@ -17,7 +13,6 @@ val constant_desc_of_parsing :
 
 val unop_of_parsing : Syli_parsing.Ast.unop -> Typed_ast.unop
 val binop_of_parsing : Syli_parsing.Ast.binop -> Typed_ast.binop
-val field_mut_of_parsing : Syli_parsing.Types.mut_flag -> Typed_ast.mut_flag
 
 val ty_decl_of_parsing :
   Env.infer_ctx ->

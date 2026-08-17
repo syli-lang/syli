@@ -30,31 +30,32 @@ let toplevel_name (env : env) (name : string) : string =
 let rec desugar_ty (t : Typed_ast.ty) : ty =
   let ty_desc =
     match t.ty_desc with
-    | TTy_Var v -> CTy_Var v
-    | TTy_Any -> CTy_Var (-1)
-    | TTy_Constant c ->
+    | Ty_Var { variable = Some v; _ } -> CTy_Var v
+    | Ty_Var { variable = None; _ } -> CTy_Var (-1)
+    | Ty_Any -> CTy_Var (-1)
+    | Ty_Constant c ->
         CTy_Constant
           (match c with
-          | TTy_Int8 -> CTy_Int8
-          | TTy_Int16 -> CTy_Int16
-          | TTy_Int32 -> CTy_Int32
-          | TTy_Int64 -> CTy_Int64
-          | TTy_UInt8 -> CTy_UInt8
-          | TTy_UInt16 -> CTy_UInt16
-          | TTy_UInt32 -> CTy_UInt32
-          | TTy_UInt64 -> CTy_UInt64
-          | TTy_Bool -> CTy_Bool
-          | TTy_Unit -> CTy_Unit
-          | TTy_Float -> CTy_Float
-          | TTy_Double -> CTy_Double
-          | TTy_StringLit -> CTy_StringLit
-          | TTy_CharLit -> CTy_CharLit)
-    | TTy_Arrow (args, ret) ->
+          | Ty_Int8 -> CTy_Int8
+          | Ty_Int16 -> CTy_Int16
+          | Ty_Int32 -> CTy_Int32
+          | Ty_Int64 -> CTy_Int64
+          | Ty_UInt8 -> CTy_UInt8
+          | Ty_UInt16 -> CTy_UInt16
+          | Ty_UInt32 -> CTy_UInt32
+          | Ty_UInt64 -> CTy_UInt64
+          | Ty_Bool -> CTy_Bool
+          | Ty_Unit -> CTy_Unit
+          | Ty_Float -> CTy_Float
+          | Ty_Double -> CTy_Double
+          | Ty_StringLit -> CTy_StringLit
+          | Ty_CharLit -> CTy_CharLit)
+    | Ty_Arrow (args, ret) ->
         CTy_Arrow (List.map desugar_ty args, desugar_ty ret)
-    | TTy_Tuple elems -> CTy_Tuple (List.map desugar_ty elems)
-    | TTy_Array elem -> CTy_Array (desugar_ty elem)
-    | TTy_Ref elem -> CTy_Ref (desugar_ty elem)
-    | TTy_Defined d ->
+    | Ty_Tuple elems -> CTy_Tuple (List.map desugar_ty elems)
+    | Ty_Array elem -> CTy_Array (desugar_ty elem)
+    | Ty_Ref elem -> CTy_Ref (desugar_ty elem)
+    | Ty_Defined d ->
         CTy_Defined
           {
             name =
@@ -436,8 +437,8 @@ let rec desugar_expr (env : env) (e : Typed_ast.expr) : expr * env =
 let desugar_type_decl (env : env) (td : Typed_ast.ty_decl) : ty_decl =
   let def =
     match td.def with
-    | TTydef_Alias t -> CTydef_Alias (desugar_ty t)
-    | TTydef_Variant ctors ->
+    | Tydef_Alias t -> CTydef_Alias (desugar_ty t)
+    | Tydef_Variant ctors ->
         CTydef_Variant
           (ctors
           |> List.mapi (fun i (c : Typed_ast.variant_constructor_decl) ->
@@ -458,13 +459,13 @@ let desugar_type_decl (env : env) (td : Typed_ast.ty_decl) : ty_decl =
                                    field_ty = desugar_ty f.field_ty;
                                    field_mut =
                                      (match f.field_mut with
-                                     | TMutable -> CMutable
-                                     | TImmutable -> CImmutable);
+                                     | Mutable -> CMutable
+                                     | Immutable -> CImmutable);
                                  })
                                fields))
                     c.arg;
               }))
-    | TTydef_Record fields ->
+    | Tydef_Record fields ->
         CTydef_Record
           (fields
           |> List.mapi (fun i (f : Typed_ast.record_field_decl) ->
@@ -474,10 +475,10 @@ let desugar_type_decl (env : env) (td : Typed_ast.ty_decl) : ty_decl =
                 field_ty = desugar_ty f.field_ty;
                 field_mut =
                   (match f.field_mut with
-                  | TMutable -> CMutable
-                  | TImmutable -> CImmutable);
+                  | Mutable -> CMutable
+                  | Immutable -> CImmutable);
               }))
-    | TTydef_Abstract -> CTydef_Abstract
+    | Tydef_Abstract -> CTydef_Abstract
   in
   {
     id = td.id;
@@ -488,7 +489,7 @@ let desugar_type_decl (env : env) (td : Typed_ast.ty_decl) : ty_decl =
         path = td.name.path;
         id = td.name.id;
       };
-    params = List.map (fun (p : Typed_ast.ident) -> p.name) td.params;
+    params = td.params;
     def;
   }
 

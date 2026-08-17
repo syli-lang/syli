@@ -4,36 +4,37 @@ open Syli_common
 
 let rec string_of_ty (t : ty) : string =
   match t.ty_desc with
-  | TTy_Constant TTy_Int64 -> "int64"
-  | TTy_Constant TTy_Int32 -> "int32"
-  | TTy_Constant TTy_Int16 -> "int16"
-  | TTy_Constant TTy_Int8 -> "int8"
-  | TTy_Constant TTy_UInt64 -> "uint64"
-  | TTy_Constant TTy_UInt32 -> "uint32"
-  | TTy_Constant TTy_UInt16 -> "uint16"
-  | TTy_Constant TTy_UInt8 -> "uint8"
-  | TTy_Constant TTy_Float -> "float"
-  | TTy_Constant TTy_Double -> "double"
-  | TTy_Constant TTy_Bool -> "bool"
-  | TTy_Constant TTy_Unit -> "unit"
-  | TTy_Constant TTy_StringLit -> "str"
-  | TTy_Constant TTy_CharLit -> "char"
-  | TTy_Var v -> "'" ^ string_of_int v
-  | TTy_Arrow (args, ret) ->
+  | Ty_Constant Ty_Int64 -> "int64"
+  | Ty_Constant Ty_Int32 -> "int32"
+  | Ty_Constant Ty_Int16 -> "int16"
+  | Ty_Constant Ty_Int8 -> "int8"
+  | Ty_Constant Ty_UInt64 -> "uint64"
+  | Ty_Constant Ty_UInt32 -> "uint32"
+  | Ty_Constant Ty_UInt16 -> "uint16"
+  | Ty_Constant Ty_UInt8 -> "uint8"
+  | Ty_Constant Ty_Float -> "float"
+  | Ty_Constant Ty_Double -> "double"
+  | Ty_Constant Ty_Bool -> "bool"
+  | Ty_Constant Ty_Unit -> "unit"
+  | Ty_Constant Ty_StringLit -> "str"
+  | Ty_Constant Ty_CharLit -> "char"
+  | Ty_Var { variable = Some v; _ } -> "'" ^ string_of_int v
+  | Ty_Var { label; variable = None } -> "'" ^ label
+  | Ty_Arrow (args, ret) ->
       let args_str = String.concat ", " (List.map string_of_ty args) in
       Printf.sprintf "(%s) -> %s" args_str (string_of_ty ret)
-  | TTy_Array t' -> Printf.sprintf "array[%s]" (string_of_ty t')
-  | TTy_Ref t' -> Printf.sprintf "ref<%s>" (string_of_ty t')
-  | TTy_Tuple ts ->
+  | Ty_Array t' -> Printf.sprintf "array[%s]" (string_of_ty t')
+  | Ty_Ref t' -> Printf.sprintf "ref<%s>" (string_of_ty t')
+  | Ty_Tuple ts ->
       let ts_str = String.concat ", " (List.map string_of_ty ts) in
       Printf.sprintf "(%s)" ts_str
-  | TTy_Defined { name; args } ->
+  | Ty_Defined { name; args } ->
       let full_name = name.name in
       if args = [] then full_name
       else
         let args_str = String.concat ", " (List.map string_of_ty args) in
         Printf.sprintf "%s<%s>" full_name args_str
-  | TTy_Any -> "_"
+  | Ty_Any -> "_"
 
 let string_of_scheme (s : scheme) : string =
   match s.vars with
@@ -58,8 +59,8 @@ let string_of_env (env : TyEnv.t) : string =
 
 let string_of_ty_decl_desc (desc : ty_decl_desc) : string =
   match desc with
-  | TTydef_Alias ty -> "alias = " ^ string_of_ty ty
-  | TTydef_Record fields ->
+  | Tydef_Alias ty -> "alias = " ^ string_of_ty ty
+  | Tydef_Record fields ->
       let field_strs =
         List.map
           (fun (f : record_field_decl) ->
@@ -67,7 +68,7 @@ let string_of_ty_decl_desc (desc : ty_decl_desc) : string =
           fields
       in
       "record {\n  " ^ String.concat "\n  " field_strs ^ "\n}"
-  | TTydef_Variant ctors ->
+  | Tydef_Variant ctors ->
       let ctor_strs =
         List.map
           (fun c ->
@@ -89,7 +90,7 @@ let string_of_ty_decl_desc (desc : ty_decl_desc) : string =
           ctors
       in
       "variant {\n  " ^ String.concat "\n  " ctor_strs ^ "\n}"
-  | TTydef_Abstract -> "abstract"
+  | Tydef_Abstract -> "abstract"
 
 let string_of_record_env (record_env : ty_record_info list StringMap.t) : string
     =

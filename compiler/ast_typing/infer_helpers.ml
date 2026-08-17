@@ -5,7 +5,7 @@ open Syli_common
 
 let fresh_ty (ctx : infer_ctx) : infer_ctx * ty =
   let v = Syli_parsing.Ast.fresh_id () in
-  (ctx, { ty_desc = TTy_Var v })
+  (ctx, mk_ty (Ty_Var { label = ""; variable = Some v }))
 
 let rec matching_param_to_arg (fn_params : 'a list) (args : 'b list) :
     'a list * 'b list * 'a list * 'b list =
@@ -22,15 +22,20 @@ let rec matching_param_to_arg (fn_params : 'a list) (args : 'b list) :
 let instantiate_scheme (ctx : infer_ctx) (s : scheme) : infer_ctx * ty =
   let rec subst (m : ty IntMap.t) (t : ty) : ty =
     match t.ty_desc with
-    | TTy_Var v -> ( match IntMap.find_opt v m with Some tv -> tv | None -> t)
-    | TTy_Arrow (args, ret) ->
-        { ty_desc = TTy_Arrow (List.map (subst m) args, subst m ret) }
-    | TTy_Tuple elems -> { ty_desc = TTy_Tuple (List.map (subst m) elems) }
-    | TTy_Array elem -> { ty_desc = TTy_Array (subst m elem) }
-    | TTy_Ref elem -> { ty_desc = TTy_Ref (subst m elem) }
-    | TTy_Defined d ->
-        { ty_desc = TTy_Defined { d with args = List.map (subst m) d.args } }
-    | TTy_Constant _ | TTy_Any -> t
+    | Ty_Var { variable = Some v; _ } -> (
+        match IntMap.find_opt v m with Some tv -> tv | None -> t)
+    | Ty_Var { variable = None; _ } -> t
+    | Ty_Arrow (args, ret) ->
+        { t with ty_desc = Ty_Arrow (List.map (subst m) args, subst m ret) }
+    | Ty_Tuple elems -> { t with ty_desc = Ty_Tuple (List.map (subst m) elems) }
+    | Ty_Array elem -> { t with ty_desc = Ty_Array (subst m elem) }
+    | Ty_Ref elem -> { t with ty_desc = Ty_Ref (subst m elem) }
+    | Ty_Defined d ->
+        {
+          t with
+          ty_desc = Ty_Defined { d with args = List.map (subst m) d.args };
+        }
+    | Ty_Constant _ | Ty_Any -> t
   in
   if s.vars = [] then (ctx, Ty.apply_ty ctx s.body)
   else

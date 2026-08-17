@@ -14,15 +14,15 @@ type transformer = {
 let rec transform_ty (t : transformer) (ty : ty) : ty =
   let ty_desc =
     match ty.ty_desc with
-    | TTy_Var _ | TTy_Any | TTy_Constant _ -> ty.ty_desc
-    | TTy_Array inner -> TTy_Array (t.ty t inner)
-    | TTy_Ref inner -> TTy_Ref (t.ty t inner)
-    | TTy_Tuple tys -> TTy_Tuple (List.map (t.ty t) tys)
-    | TTy_Arrow (params, ret) -> TTy_Arrow (List.map (t.ty t) params, t.ty t ret)
-    | TTy_Defined ({ args; _ } as defined) ->
-        TTy_Defined { defined with args = List.map (t.ty t) args }
+    | Ty_Var _ | Ty_Any | Ty_Constant _ -> ty.ty_desc
+    | Ty_Array inner -> Ty_Array (t.ty t inner)
+    | Ty_Ref inner -> Ty_Ref (t.ty t inner)
+    | Ty_Tuple tys -> Ty_Tuple (List.map (t.ty t) tys)
+    | Ty_Arrow (params, ret) -> Ty_Arrow (List.map (t.ty t) params, t.ty t ret)
+    | Ty_Defined ({ args; _ } as defined) ->
+        Ty_Defined { defined with args = List.map (t.ty t) args }
   in
-  { ty_desc }
+  { ty with ty_desc }
 
 let rec transform_pattern (t : transformer) (p : pattern) : pattern =
   let pattern_desc =
@@ -155,12 +155,12 @@ let transform_pattern_case (t : transformer) (c : pattern_case) : pattern_case =
 let transform_ty_decl (t : transformer) (td : ty_decl) : ty_decl =
   let def =
     match td.def with
-    | TTydef_Alias ty -> TTydef_Alias (t.ty t ty)
-    | TTydef_Record fields ->
-        TTydef_Record
+    | Tydef_Alias ty -> Tydef_Alias (t.ty t ty)
+    | Tydef_Record fields ->
+        Tydef_Record
           (List.map (fun f -> { f with field_ty = t.ty t f.field_ty }) fields)
-    | TTydef_Variant ctors ->
-        TTydef_Variant
+    | Tydef_Variant ctors ->
+        Tydef_Variant
           (List.map
              (fun c ->
                {
@@ -178,7 +178,7 @@ let transform_ty_decl (t : transformer) (td : ty_decl) : ty_decl =
                      c.arg;
                })
              ctors)
-    | TTydef_Abstract -> TTydef_Abstract
+    | Tydef_Abstract -> Tydef_Abstract
   in
   { td with def }
 
