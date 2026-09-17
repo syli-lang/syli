@@ -302,7 +302,7 @@ Tuple creates an object with two fields:
   > let pair = (1, 2)
   > EOF
   $ dune exec sylic -- cir test_tuple.sy
-  Fatal error: exception Middle_end__Lower_ast_to_core.Desugar_error("test_tuple.sy:11-17: tuple expressions are not lowered to Core yet")
+  Fatal error: exception Middle_end__Lower_core_to_cir.Lowering_error("core form not lowered to SIR yet")
   [2]
 
 Triple tuple creates an object with three fields:
@@ -310,7 +310,7 @@ Triple tuple creates an object with three fields:
   > let triple = (true, 42, "x")
   > EOF
   $ dune exec sylic -- cir test_triple.sy
-  Fatal error: exception Middle_end__Lower_ast_to_core.Desugar_error("test_triple.sy:13-28: tuple expressions are not lowered to Core yet")
+  Fatal error: exception Middle_end__Lower_core_to_cir.Lowering_error("core form not lowered to SIR yet")
   [2]
 
 Type error propagates from typing phase:

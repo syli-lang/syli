@@ -95,9 +95,9 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
         in
         (ctx, TTydef_Record fields)
     | Tydef_Variant ctors ->
-        let ctx, ctors =
+        let (ctx, _), ctors =
           List.fold_left_map
-            (fun ctx (c : Syli_parsing.Ast.variant_constructor_decl) ->
+            (fun (ctx, i) (c : Syli_parsing.Ast.variant_constructor_decl) ->
               let ctx, arg =
                 match c.arg with
                 | None -> (ctx, None)
@@ -124,14 +124,15 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
                     in
                     (ctx, Some (Constr_record fields))
               in
-              ( ctx,
+              ( (ctx, i + 1),
                 {
                   id = c.id;
                   name = ident_of_parsing c.name;
                   arg;
+                  tag = i;
                   loc = loc_of_parsing c.loc;
                 } ))
-            ctx ctors
+            (ctx, 0) ctors
         in
         (ctx, TTydef_Variant ctors)
     | Tydef_Abstract -> (ctx, TTydef_Abstract)
@@ -140,17 +141,7 @@ let rec ty_decl_of_parsing (ctx : Env.infer_ctx) (td : Syli_parsing.Ast.ty_decl)
     {
       id = td.id;
       name = ident_of_parsing td.name;
-      params =
-        List.map
-          (fun p ->
-            {
-              name = p;
-              id = Hashtbl.hash (td.id, p);
-              path = [];
-              loc;
-              is_operator = false;
-            })
-          td.params;
+      params = List.map ident_of_parsing td.params;
       def;
       annotations =
         List.map (fun (a : Syli_parsing.Ast.ident) -> a.name) td.annotations;

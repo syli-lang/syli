@@ -57,6 +57,7 @@ and variant_constructor_decl = {
   id : int;
   name : ident;
   arg : variant_constructor_arg option;
+  tag : int;
   loc : location;
 }
 (** A variant constructor declaration in the typed AST. *)
@@ -143,7 +144,7 @@ and expr_desc =
   | TExp_Ident of ident
   | TExp_Tuple of { elements : expr list }
   | TExp_Record of { fields : record_field list }
-  | TExp_VariantConstructor of { name : ident; arg : expr option }
+  | TExp_VariantConstructor of { tag : int; name : ident; arg : expr option }
   | TExp_Array of { element_ty : ty; elements : expr list; size : expr }
   | TExp_Lambda of lambda
   | TExp_Apply of { closure_fun : expr; args : expr list }
@@ -181,6 +182,7 @@ and pattern = { id : int; pattern_desc : pattern_desc; loc : location; ty : ty }
 
 and pattern_record_field = {
   name : ident;
+  field_idx : int;
   pattern : pattern option;
   loc : location;
 }
@@ -197,7 +199,7 @@ and pattern_desc =
   | TPat_Ident of ident
   | TPat_Tuple of { elements : pattern list }
   | TPat_Record of { fields : pattern_record_field list }
-  | TPat_Constructor of { ident : string; pattern : pattern option }
+  | TPat_Constructor of { tag : int; ident : string; pattern : pattern option }
   | TPat_Any
 
 (** Description of a typed signature item. *)

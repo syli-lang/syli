@@ -40,8 +40,9 @@ let rec transform_pattern (t : transformer) (p : pattern) : pattern =
                   { f with pattern = Option.map (t.pattern t) f.pattern })
                 fields;
           }
-    | TPat_Constructor { ident; pattern } ->
-        TPat_Constructor { ident; pattern = Option.map (t.pattern t) pattern }
+    | TPat_Constructor { tag; ident; pattern } ->
+        TPat_Constructor
+          { tag; ident; pattern = Option.map (t.pattern t) pattern }
   in
   { p with pattern_desc; ty = t.ty t p.ty }
 
@@ -82,8 +83,8 @@ let rec transform_expr (t : transformer) (e : expr) : expr =
                 (fun f -> { f with field_value = t.expr t f.field_value })
                 fields;
           }
-    | TExp_VariantConstructor { name; arg } ->
-        TExp_VariantConstructor { name; arg = Option.map (t.expr t) arg }
+    | TExp_VariantConstructor { tag; name; arg } ->
+        TExp_VariantConstructor { tag; name; arg = Option.map (t.expr t) arg }
     | TExp_Array { element_ty; elements; size } ->
         TExp_Array
           {

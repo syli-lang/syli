@@ -174,7 +174,7 @@ type ty_decl_desc =
 type ty_decl = {
   id : int;
   name : ident;
-  params : string list;
+  params : ident list;
   def : ty_decl_desc;
   annotations : ident list;
   loc : location;

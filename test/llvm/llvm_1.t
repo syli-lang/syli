@@ -726,7 +726,7 @@ Tuple emits syli_object_create and syli_object_set runtime calls:
   > let pair = (1, 2)
   > EOF
   $ dune exec sylic -- llvm test_tuple.sy
-  Fatal error: exception Middle_end__Lower_ast_to_core.Desugar_error("test_tuple.sy:11-17: tuple expressions are not lowered to Core yet")
+  Fatal error: exception Middle_end__Lower_core_to_cir.Lowering_error("core form not lowered to SIR yet")
   ***** UNREACHABLE *****
 
 Triple tuple emits three object_set calls:

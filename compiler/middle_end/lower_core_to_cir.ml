@@ -572,8 +572,8 @@ let rec lower_expr (ctx : ctx) (e : C.expr) : ctx * I.operand =
           val_ty
       in
       (ctx, void_null)
-  | CExp_VariantConstructor _ | CExp_Array _ | CExp_Loop _ | CExp_Break _
-  | CExp_Continue | CExp_Return _ | CExp_Match _ ->
+  | CExp_VariantConstructor _ | CExp_Array _ | CExp_Tuple _ | CExp_Loop _
+  | CExp_Break _ | CExp_Continue | CExp_Return _ | CExp_Match _ ->
       raise (Lowering_error "core form not lowered to SIR yet")
 
 and lower_lambda_function (ctx : ctx) (name : string) (lam : C.lambda)

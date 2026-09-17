@@ -30,6 +30,7 @@ let rec visit_expr_children (v : 'acc visitor) (acc : 'acc) (e : expr) : 'acc =
   | CExp_Array { elements; size; _ } ->
       let acc'' = List.fold_left (v.expr v) acc' elements in
       v.expr v acc'' size
+  | CExp_Tuple exprs -> List.fold_left (v.expr v) acc' exprs
   | CExp_Record fields ->
       List.fold_left
         (fun a (f : record_field) ->

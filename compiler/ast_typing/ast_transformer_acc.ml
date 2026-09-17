@@ -58,7 +58,7 @@ let rec transform_pattern (t : 'acc transformer) (acc : 'acc) (p : pattern) :
           acc fields
       in
       (acc', { p with pattern_desc = TPat_Record { fields = fields' } })
-  | TPat_Constructor { ident; pattern } ->
+  | TPat_Constructor { tag; ident; pattern } ->
       let acc', pattern' =
         match pattern with
         | None -> (acc, None)
@@ -67,8 +67,10 @@ let rec transform_pattern (t : 'acc transformer) (acc : 'acc) (p : pattern) :
             (a', Some p'')
       in
       ( acc',
-        { p with pattern_desc = TPat_Constructor { ident; pattern = pattern' } }
-      )
+        {
+          p with
+          pattern_desc = TPat_Constructor { tag; ident; pattern = pattern' };
+        } )
 
 let transform_param (t : 'acc transformer) (acc : 'acc) (p : param) :
     'acc * param =
@@ -128,7 +130,7 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
           acc fields
       in
       (acc', { e with expr_desc = TExp_Record { fields = fields' } })
-  | TExp_VariantConstructor { name; arg } ->
+  | TExp_VariantConstructor { tag; name; arg } ->
       let acc', args' =
         match arg with
         | None -> (acc, None)
@@ -137,7 +139,10 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
             (a', Some arg')
       in
       ( acc',
-        { e with expr_desc = TExp_VariantConstructor { name; arg = args' } } )
+        {
+          e with
+          expr_desc = TExp_VariantConstructor { tag; name; arg = args' };
+        } )
   | TExp_Array { element_ty; elements; size } ->
       let acc', element_ty' = t.ty t acc element_ty in
       let acc'', elements' =

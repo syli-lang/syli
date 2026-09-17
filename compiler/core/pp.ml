@@ -62,7 +62,7 @@ let rec string_of_expr_inner ?(indent = 0) (e : expr) : string =
       let fs =
         String.concat "; "
           (List.map
-             (fun f ->
+             (fun (f : record_field) ->
                Printf.sprintf "%d = %s" f.field_idx
                  (string_of_expr ~indent f.field_value))
              fields)
@@ -75,6 +75,9 @@ let rec string_of_expr_inner ?(indent = 0) (e : expr) : string =
       Printf.sprintf "array<%s>[%s]{%s}" (string_of_ty element_ty)
         (string_of_expr ~indent size)
         (String.concat "; " (List.map (string_of_expr ~indent) elements))
+  | CExp_Tuple elements ->
+      Printf.sprintf "(%s)"
+        (String.concat ", " (List.map (string_of_expr ~indent) elements))
   | CExp_Field { record; field_idx } ->
       (* Use inner for record so the annotation doesn't sit between record and .field *)
       Printf.sprintf "%s.%d" (string_of_expr_inner ~indent record) field_idx
@@ -169,14 +172,16 @@ and string_of_pattern ?(indent = 0) (p : pattern) : string =
     | Pat_StringLit s -> Printf.sprintf "%S" s
     | Pat_Ident id -> id.name
     | Pat_Any -> "_"
+    | Pat_Tuple elems ->
+        Printf.sprintf "(%s)" (String.concat ", " (List.map inner elems))
     | Pat_Record fields ->
         let fs =
           String.concat "; "
             (List.map
                (fun (f : pattern_record_field) ->
                  match f.pattern with
-                 | None -> f.name.name
-                 | Some p' -> Printf.sprintf "%s = %s" f.name.name (inner p'))
+                 | None -> Printf.sprintf "%d" f.field_idx
+                 | Some p' -> Printf.sprintf "%d = %s" f.field_idx (inner p'))
                fields)
         in
         Printf.sprintf "{ %s }" fs

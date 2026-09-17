@@ -106,8 +106,6 @@ let rec desugar_ty env (t : Typed_ast.ty) : ty =
 
 and env_path_of_ident (id : Typed_ast.ident) : string list = id.path
 
-let hash_index (name : string) : int = abs (Hashtbl.hash name)
-
 let rec desugar_pattern (p : Typed_ast.pattern) : pattern =
   let id = p.id in
   let node =
@@ -120,24 +118,18 @@ let rec desugar_pattern (p : Typed_ast.pattern) : pattern =
     | TPat_StringLit s -> Pat_StringLit s
     | TPat_Ident name ->
         Pat_Ident { name = name.name; path = name.path; id = name.id }
-    | TPat_Tuple { elements } ->
-        error_at p.loc "tuple pattern is not lowered to core yet"
+    | TPat_Tuple { elements } -> Pat_Tuple (List.map desugar_pattern elements)
     | TPat_Record { fields } ->
         Pat_Record
           (List.map
              (fun (f : Typed_ast.pattern_record_field) ->
                {
-                 name =
-                   { name = f.name.name; path = f.name.path; id = f.name.id };
+                 field_idx = f.field_idx;
                  pattern = Option.map desugar_pattern f.pattern;
                })
              fields)
-    | TPat_Constructor { ident; pattern } ->
-        Pat_Constructor
-          {
-            tag = hash_index ident;
-            pattern = Option.map desugar_pattern pattern;
-          }
+    | TPat_Constructor { tag; pattern } ->
+        Pat_Constructor { tag; pattern = Option.map desugar_pattern pattern }
     | TPat_Any -> Pat_Any
   in
   { id; node }
@@ -196,8 +188,15 @@ let rec desugar_expr (env : env) (e : Typed_ast.expr) : expr * env =
           ( CExp_Ident
               { name = qualify_name env i.name; path = i.path; id = i.id },
             env )
-    | TExp_Tuple _ ->
-        error_at e.loc "tuple expressions are not lowered to Core yet"
+    | TExp_Tuple { elements } ->
+        let env, elements =
+          List.fold_left_map
+            (fun env e ->
+              let exp, env = desugar_expr env e in
+              (env, exp))
+            env elements
+        in
+        (CExp_Tuple elements, env)
     | TExp_Record { fields } ->
         let lowered_fields =
           fields
@@ -209,8 +208,7 @@ let rec desugar_expr (env : env) (e : Typed_ast.expr) : expr * env =
               })
         in
         (CExp_Record lowered_fields, env)
-    | TExp_VariantConstructor { name; arg } ->
-        let tag = hash_index name.name in
+    | TExp_VariantConstructor { tag; name; arg } ->
         ( CExp_VariantConstructor
             { tag; arg = Option.map (fun a -> fst (desugar_expr env a)) arg },
           env )
@@ -378,7 +376,7 @@ let desugar_type_decl (env : env) (td : Typed_ast.ty_decl) : ty_decl =
           |> List.mapi (fun i (c : Typed_ast.variant_constructor_decl) ->
               {
                 id = c.id;
-                variant_tag = i;
+                tag = i;
                 arg =
                   Option.map
                     (function

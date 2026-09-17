@@ -57,6 +57,11 @@ let rec transform_expr (t : 'acc transformer) (acc : 'acc) (e : expr) :
         ( a'',
           CExp_Array
             { element_ty = element_ty'; elements = elements'; size = size' } )
+    | CExp_Tuple elements ->
+        let a, elements' =
+          List.fold_left_map (fun st el -> t.expr t st el) acc' elements
+        in
+        (a, CExp_Tuple elements')
     | CExp_Record fields ->
         let a, fields' =
           List.fold_left_map

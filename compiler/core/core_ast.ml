@@ -41,12 +41,7 @@ and ty_desc =
   | CTy_Array of ty  (** array[T] *)
   | CTy_Defined of { name : ident; args : ty list }
 
-and constructor_decl = {
-  id : int;
-  variant_tag : int;
-  arg : constructor_arg option;
-}
-
+and constructor_decl = { id : int; tag : int; arg : constructor_arg option }
 and constructor_arg = Constr_ty of ty | Constr_record of record_field_ty list
 
 and record_field_ty = {
@@ -88,6 +83,7 @@ and constant =
 and expr_node =
   | CExp_Constant of constant
   | CExp_Ident of ident
+  | CExp_Tuple of expr list
   | CExp_Record of record_field list
   | CExp_VariantConstructor of { tag : int; arg : expr option }
   | CExp_Array of { element_ty : ty; elements : expr list; size : expr }
@@ -116,7 +112,7 @@ and pattern_case = {
 }
 
 and pattern = { id : int; node : pattern_desc }
-and pattern_record_field = { name : ident; pattern : pattern option }
+and pattern_record_field = { field_idx : int; pattern : pattern option }
 
 and pattern_desc =
   | Pat_Unit
@@ -127,6 +123,7 @@ and pattern_desc =
   | Pat_StringLit of string
   | Pat_Ident of ident
   | Pat_Record of pattern_record_field list
+  | Pat_Tuple of pattern list
   | Pat_Constructor of { tag : int; pattern : pattern option }
   | Pat_Any
 

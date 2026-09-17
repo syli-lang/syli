@@ -18,54 +18,49 @@ let apply_param_ty (ctx : infer_ctx) (p : param) : param =
   { p with param_ty = Option.map (apply_ty ctx) p.param_ty }
 
 let unify_record_expr_fields_with_decl (ctx : infer_ctx)
-    (decl_fields : record_field_decl list) (fields : record_field list) :
-    infer_ctx * record_field list =
+    (decl_fields : record_field_decl list)
+    (fields : (ident * expr * location) list) : infer_ctx * int list =
   let find_decl_field name =
     List.find_opt
       (fun (decl_field : record_field_decl) ->
         decl_field.field_name.name = name)
       decl_fields
   in
-  let ctx, fields =
-    List.fold_left
-      (fun (ctx, fields) (f : record_field) ->
-        match find_decl_field f.field_name.name with
-        | None ->
-            raise
-              (Type_error
-                 ( Some f.loc,
-                   Printf.sprintf "unknown record field '%s'" f.field_name.name
-                 ))
-        | Some decl_field ->
-            let ctx =
-              unify_into ~loc:f.loc ctx f.field_value.ty decl_field.field_ty
-            in
-            (ctx, { f with field_idx = decl_field.field_idx } :: fields))
-      (ctx, []) fields
-  in
-  (ctx, List.rev fields)
-
-let unify_record_pattern_fields_with_decl (ctx : infer_ctx)
-    (decl_fields : record_field_decl list) (fields : pattern_record_field list)
-    : infer_ctx =
-  let find_decl_field name =
-    List.find_opt
-      (fun (decl_field : record_field_decl) ->
-        decl_field.field_name.name = name)
-      decl_fields
-  in
-  List.fold_left
-    (fun ctx (f : pattern_record_field) ->
-      match find_decl_field f.name.name with
+  List.fold_left_map
+    (fun ctx ((name, value, loc) : ident * expr * location) ->
+      match find_decl_field name.name with
       | None ->
           raise
             (Type_error
-               ( Some f.loc,
-                 Printf.sprintf "unknown record field '%s'" f.name.name ))
-      | Some decl_field -> (
-          match f.pattern with
-          | None -> ctx
-          | Some p -> unify_into ~loc:p.loc ctx p.ty decl_field.field_ty))
+               (Some loc, Printf.sprintf "unknown record field '%s'" name.name))
+      | Some decl_field ->
+          let ctx = unify_into ~loc ctx value.ty decl_field.field_ty in
+          (ctx, decl_field.field_idx))
+    ctx fields
+
+let unify_record_pattern_fields_with_decl (ctx : infer_ctx)
+    (decl_fields : record_field_decl list)
+    (fields : (ident * pattern option * location) list) : infer_ctx * int list =
+  let find_decl_field name =
+    List.find_opt
+      (fun (decl_field : record_field_decl) ->
+        decl_field.field_name.name = name)
+      decl_fields
+  in
+  List.fold_left_map
+    (fun ctx ((name, pattern, loc) : ident * pattern option * location) ->
+      match find_decl_field name.name with
+      | None ->
+          raise
+            (Type_error
+               (Some loc, Printf.sprintf "unknown record field '%s'" name.name))
+      | Some decl_field ->
+          let ctx =
+            match pattern with
+            | None -> ctx
+            | Some p -> unify_into ~loc:p.loc ctx p.ty decl_field.field_ty
+          in
+          (ctx, decl_field.field_idx))
     ctx fields
 
 let rec infer_pattern (ctx : infer_ctx) (p : Parsing_ast.pattern) :
@@ -115,26 +110,49 @@ let rec infer_pattern (ctx : infer_ctx) (p : Parsing_ast.pattern) :
       let ty = { ty_desc = TTy_Tuple tys } in
       ( ctx,
         { id = p.id; pattern_desc = TPat_Tuple { elements = pats }; loc; ty } )
-  | Parsing_ast.Pat_Record { fields } ->
-      let ctx, typed_fields =
+  | Parsing_ast.Pat_Record { fields } -> (
+      let ctx, infos =
         List.fold_left_map
           (fun ctx (f : Parsing_ast.pattern_record_field) ->
-            match f.value with
-            | None ->
-                (ctx, { name = ident_of_parsing f.name; pattern = None; loc })
-            | Some p ->
-                let ctx, tp = infer_pattern ctx p in
-                (ctx, { name = ident_of_parsing f.name; pattern = Some tp; loc }))
+            let ctx, pattern =
+              match f.value with
+              | None -> (ctx, None)
+              | Some p ->
+                  let ctx, tp = infer_pattern ctx p in
+                  (ctx, Some tp)
+            in
+            (ctx, (ident_of_parsing f.name, pattern, loc_of_parsing f.loc)))
           ctx fields
       in
-      let ctx, ty = fresh_ty ctx in
-      ( ctx,
-        {
-          id = p.id;
-          pattern_desc = TPat_Record { fields = typed_fields };
-          loc;
-          ty;
-        } )
+      let fields_names =
+        List.map (fun ((name : ident), _, _) -> name.name) infos
+      in
+      match find_record_by_field_names ctx fields_names with
+      | Some record_info ->
+          let ctx, idx_fields =
+            unify_record_pattern_fields_with_decl ctx record_info.record_fields
+              infos
+          in
+          let fields =
+            List.map2
+              (fun (name, pattern, loc) field_idx ->
+                { field_idx; name; pattern; loc })
+              infos idx_fields
+          in
+          let ty =
+            mk_ty (TTy_Defined { name = record_info.ty_decl.name; args = [] })
+          in
+          (ctx, { id = p.id; pattern_desc = TPat_Record { fields }; loc; ty })
+      | None ->
+          raise
+            (Type_error
+               ( Some loc,
+                 Printf.sprintf
+                   "cannot infer record type for fields {%s}: no matching \
+                    record type"
+                   (String.concat ", "
+                      (List.map (fun ((name : ident), _, _) -> name.name) infos))
+               )))
   | Parsing_ast.Pat_Constructor { name; value } ->
       let ctx, arg_opt =
         match value with
@@ -143,7 +161,7 @@ let rec infer_pattern (ctx : infer_ctx) (p : Parsing_ast.pattern) :
             let ctx, tp = infer_pattern ctx p in
             (ctx, Some tp)
       in
-      let ctx, ty =
+      let ctx, ty, contructor =
         match find_constructor_by_name ctx name.name with
         | None ->
             raise
@@ -174,7 +192,16 @@ let rec infer_pattern (ctx : infer_ctx) (p : Parsing_ast.pattern) :
               | ( Some (Constr_record fields),
                   Some { pattern_desc = TPat_Record { fields = pat_fields }; _ }
                 ) ->
-                  unify_record_pattern_fields_with_decl ctx fields pat_fields
+                  let pat_infos =
+                    List.map
+                      (fun (f : pattern_record_field) ->
+                        (f.name, f.pattern, f.loc))
+                      pat_fields
+                  in
+                  let ctx, _ =
+                    unify_record_pattern_fields_with_decl ctx fields pat_infos
+                  in
+                  ctx
               | Some (Constr_record _), Some _ ->
                   raise
                     (Type_error
@@ -183,13 +210,14 @@ let rec infer_pattern (ctx : infer_ctx) (p : Parsing_ast.pattern) :
                            "variant constructor '%s' expects a record pattern"
                            name.name ))
             in
-            (ctx, mk_ty (TTy_Defined { name = ty_decl.name; args = [] }))
+            (ctx, mk_ty (TTy_Defined { name = ty_decl.name; args = [] }), ctor)
       in
       ( ctx,
         {
           id = p.id;
           pattern_desc =
-            TPat_Constructor { ident = name.name; pattern = arg_opt };
+            TPat_Constructor
+              { tag = contructor.tag; ident = name.name; pattern = arg_opt };
           loc;
           ty;
         } )
@@ -228,26 +256,27 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
       let ty = mk_ty (TTy_Tuple (List.map (fun (e : expr) -> e.ty) elems)) in
       (ctx, { id = e.id; expr_desc = TExp_Tuple { elements = elems }; loc; ty })
   | Parsing_ast.Exp_Record { fields } -> (
-      let ctx, fields =
+      let ctx, infos =
         List.fold_left_map
           (fun ctx (f : Parsing_ast.record_field) ->
             let ctx, tv = infer_expr ctx f.field_value in
-            ( ctx,
-              {
-                id = f.id;
-                field_name = ident_of_parsing f.field_name;
-                field_value = tv;
-                loc = loc_of_parsing f.loc;
-                field_idx = 0;
-              } ))
+            (ctx, (ident_of_parsing f.field_name, tv, loc_of_parsing f.loc)))
           ctx fields
       in
-      let field_names = List.map (fun field -> field.field_name.name) fields in
+      let field_names =
+        List.map (fun ((name : ident), _, _) -> name.name) infos
+      in
       match find_record_by_field_names ctx field_names with
       | Some record_info ->
-          let ctx, fields =
+          let ctx, idx_fields =
             unify_record_expr_fields_with_decl ctx record_info.record_fields
-              fields
+              infos
+          in
+          let fields =
+            List.map2
+              (fun ((field_name : ident), field_value, loc) field_idx ->
+                { id = field_name.id; field_name; field_idx; field_value; loc })
+              infos idx_fields
           in
           let ty =
             mk_ty (TTy_Defined { name = record_info.ty_decl.name; args = [] })
@@ -261,12 +290,11 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
                    "cannot infer record type for fields {%s}: no matching \
                     record type"
                    (String.concat ", "
-                      (List.map
-                         (fun (f : record_field) -> f.field_name.name)
-                         fields)) )))
+                      (List.map (fun ((name : ident), _, _) -> name.name) infos))
+               )))
   | Parsing_ast.Exp_VariantConstructor { name; arg } ->
       let name = ident_of_parsing name in
-      let ctx, arg_expr, ty =
+      let ctx, arg_expr, ty, constructor =
         match find_constructor_by_name ctx name.name with
         | None ->
             raise
@@ -279,11 +307,11 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
               mk_ty (TTy_Defined { name = ty_decl.name; args = [] })
             in
             match (ctor.arg, arg) with
-            | None, None -> (ctx, None, variant_ty)
+            | None, None -> (ctx, None, variant_ty, ctor)
             | Some (Constr_ty t), None ->
-                (ctx, None, mk_ty (TTy_Arrow (t, variant_ty)))
+                (ctx, None, mk_ty (TTy_Arrow (t, variant_ty)), ctor)
             | Some (Constr_record _), None ->
-                (ctx, None, mk_ty (TTy_Arrow (variant_ty, variant_ty)))
+                (ctx, None, mk_ty (TTy_Arrow (variant_ty, variant_ty)), ctor)
             | None, Some _ ->
                 raise
                   (Type_error
@@ -294,26 +322,35 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
             | Some (Constr_ty t), Some a ->
                 let ctx, a = infer_expr ctx a in
                 let ctx = unify_into ~loc:a.loc ctx a.ty t in
-                (ctx, Some a, variant_ty)
+                (ctx, Some a, variant_ty, ctor)
             | Some (Constr_record fields), Some a -> (
                 match a.expr_desc with
                 | Parsing_ast.Exp_Record { fields = fields' } ->
-                    let ctx, typed_fields =
+                    let ctx, infos =
                       List.fold_left_map
                         (fun ctx (f : Parsing_ast.record_field) ->
                           let ctx, tv = infer_expr ctx f.field_value in
                           ( ctx,
-                            {
-                              id = f.id;
-                              field_name = ident_of_parsing f.field_name;
-                              field_value = tv;
-                              loc = loc_of_parsing f.loc;
-                              field_idx = 0;
-                            } ))
+                            ( ident_of_parsing f.field_name,
+                              tv,
+                              loc_of_parsing f.loc ) ))
                         ctx fields'
                     in
-                    let ctx, typed_fields =
-                      unify_record_expr_fields_with_decl ctx fields typed_fields
+                    let ctx, idx_fields =
+                      unify_record_expr_fields_with_decl ctx fields infos
+                    in
+                    let typed_fields =
+                      List.map2
+                        (fun ((field_name : ident), field_value, loc) field_idx
+                           ->
+                          {
+                            id = field_name.id;
+                            field_name;
+                            field_idx;
+                            field_value;
+                            loc;
+                          })
+                        infos idx_fields
                     in
                     let record_expr =
                       {
@@ -323,7 +360,7 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
                         ty = variant_ty;
                       }
                     in
-                    (ctx, Some record_expr, variant_ty)
+                    (ctx, Some record_expr, variant_ty, ctor)
                 | _ ->
                     raise
                       (Type_error
@@ -336,7 +373,9 @@ let rec infer_expr (ctx : infer_ctx) (e : Parsing_ast.expr) : infer_ctx * expr =
       ( ctx,
         {
           id = e.id;
-          expr_desc = TExp_VariantConstructor { name; arg = arg_expr };
+          expr_desc =
+            TExp_VariantConstructor
+              { tag = constructor.tag; name; arg = arg_expr };
           loc;
           ty;
         } )

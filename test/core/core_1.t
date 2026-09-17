@@ -528,3 +528,19 @@ Closure Lambda as an argument with multiple captured variables:
         2 : i64
       }
   
+Simple tuple:
+  $ cat >test_simple_tuple.sy <<EOF
+  > let apply f x y =  f x y
+  > let id x y = (x,y)
+  > let _ = apply id 2 3
+  > EOF
+  $ dune exec sylic -- core test_simple_tuple.sy
+  module Test_simple_tuple
+  let syliTest_simple_tuple.apply = fun (f, x, y) : 'a53 ->
+      f(x : 'a47, y : 'a49) : 'a53
+  
+  let syliTest_simple_tuple.id = fun (x, y) : ('a55 * 'a57) ->
+      (x : 'a55, y : 'a57) : ('a55 * 'a57)
+  
+  let syliTest_simple_tuple.sy1_any_pat = syliTest_simple_tuple.apply(syliTest_simple_tuple.id : (i64) -> (i64) -> (i64 * i64), 2 : i64, 3 : i64) : (i64 * i64)
+  
