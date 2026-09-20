@@ -149,7 +149,6 @@ rule token = parse
 
   | "."         { DOT }
   | "->"        { ARROW }
-  | "_"         { UNDERSCORE }
 
   | '\r'        { token lexbuf }  (* ignore carriage returns *)
 

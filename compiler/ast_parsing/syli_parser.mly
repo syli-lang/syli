@@ -350,7 +350,6 @@ args:
   | UIDENT { mk_ident $startpos $endpos $1 }
 
 %inline pattern_desc_simple:
-  | UNDERSCORE                          { Pat_Any }
   | INT                                 { Pat_IntLit $1 }
   | STRING                              { Pat_StringLit $1 }
   | CHAR                                { Pat_CharLit $1 }
@@ -359,7 +358,7 @@ args:
   | LPAREN RPAREN                       { Pat_Unit }
   | LPAREN pattern_tuple RPAREN         { Pat_Tuple { elements = $2} }
   | LBRACE record_pattern_list RBRACE   { Pat_Record { fields = $2} }
-  | name = ident                        { Pat_Ident name }
+  | name = ident                        { if name.name = "_" then Pat_Any else Pat_Ident name }
 
 %inline pattern_simple:
   | pattern_desc_simple {mk_pattern $startpos $endpos $1}

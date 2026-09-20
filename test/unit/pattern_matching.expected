@@ -1,0 +1,41 @@
+ok   literal with wildcard default
+  switch root { int 0 -> leaf; _ -> leaf }
+ok   several literals
+  switch root { int 2 -> leaf; int 1 -> leaf; _ -> leaf }
+ok   variant construtors
+  switch root { tag(1) -> leaf[v=root.payload]; tag(0) -> leaf; _ -> fail }
+ok   variant with wildcard default
+  switch root { tag(1) -> leaf[v=root.payload]; _ -> leaf }
+ok   record (no test, one column per field)
+  leaf[y=root.1, x=root.0]
+ok   variant with record payload
+  switch root { tag(1) -> leaf[hh=root.payload.1, ww=root.payload.0]; tag(0) -> leaf[r=root.payload.0]; _ -> fail }
+ok   nested variant construtags
+  switch root { tag(1) -> leaf; tag(0) -> switch root.payload { tag(0) -> leaf; tag(1) -> leaf[y=root.payload.payload]; _ -> fail }; _ -> fail }
+ok   tuple (no test, one column per element)
+  leaf[b=root.1, a=root.0]
+ok   guard falls through to a later literal row
+  switch root { int 0 -> guard{leaf | leaf}; _ -> leaf }
+ok   guard keeps bindings for condition and body
+  switch root { tag(1) -> guard[y=root.payload]{leaf[y=root.payload] | leaf}; _ -> leaf }
+ok   guard failure retries the remaining construtag rows
+  switch root { tag(0) -> leaf; tag(1) -> guard[y=root.payload]{leaf[y=root.payload] | switch root.payload { int 1 -> leaf; _ -> leaf[y=root.payload] }}; _ -> fail }
+ok   earlier irrefutable row shadows a later specific one
+  switch root { tag(1) -> leaf[v=root.payload]; _ -> leaf }
+ok   literal inside a construtag payload
+  switch root { tag(1) -> switch root.payload { int 0 -> leaf; _ -> leaf[v=root.payload] }; _ -> leaf }
+ok   tuple over multiple columns
+  switch root.0 { tag(1) -> switch root.0.payload { int 1 -> leaf; _ -> switch root.1 { tag(1) -> switch root.1.payload { int 2 -> leaf; _ -> leaf }; _ -> leaf } }; _ -> switch root.1 { tag(1) -> switch root.1.payload { int 2 -> leaf; _ -> leaf }; _ -> leaf } }
+ok   record fields and literals across columns
+  switch root.0 { int 0 -> leaf[y=root.1]; _ -> switch root.1 { int 1 -> leaf[nm=root.0]; _ -> leaf } }
+ok   list zip across two columns
+  switch root.0 { tag(1) -> switch root.1 { tag(1) -> leaf[ry=root.1.payload.1, y=root.1.payload.0, rx=root.0.payload.1, x=root.0.payload.0]; tag(0) -> leaf; _ -> fail }; tag(0) -> leaf; _ -> switch root.1 { tag(0) -> leaf; _ -> fail } }
+ok   unit match is irrefutable
+  leaf
+ok   unit-typed binder is kept
+  switch root { tag(0) -> leaf[y=root.payload]; _ -> fail }
+ok   unit columns dropped, third column tested
+  switch root.2 { int 3 -> leaf; int 2 -> leaf; _ -> fail }
+ok   tuple construtor payload
+  switch root { tag(0) -> leaf; tag(1) -> switch root.payload.0 { int 0 -> leaf; _ -> leaf }; _ -> fail }
+all pattern-matching tests passed

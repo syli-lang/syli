@@ -106,33 +106,57 @@ let rec desugar_ty env (t : Typed_ast.ty) : ty =
 
 and env_path_of_ident (id : Typed_ast.ident) : string list = id.path
 
-let rec desugar_pattern (p : Typed_ast.pattern) : pattern =
+let rec desugar_pattern (env : env) (p : Typed_ast.pattern) : pattern * env =
   let id = p.id in
-  let node =
+  let node, env' =
     match p.pattern_desc with
-    | TPat_Unit -> Pat_Unit
-    | TPat_BoolLit s -> Pat_BoolLit s
-    | TPat_IntLit s -> Pat_IntLit s
-    | TPat_FloatLit s -> Pat_FloatLit s
-    | TPat_CharLit s -> Pat_CharLit s
-    | TPat_StringLit s -> Pat_StringLit s
+    | TPat_Unit -> (Pat_Unit, env)
+    | TPat_BoolLit s -> (Pat_BoolLit s, env)
+    | TPat_IntLit s -> (Pat_IntLit s, env)
+    | TPat_FloatLit s -> (Pat_FloatLit s, env)
+    | TPat_CharLit s -> (Pat_CharLit s, env)
+    | TPat_StringLit s -> (Pat_StringLit s, env)
     | TPat_Ident name ->
-        Pat_Ident { name = name.name; path = name.path; id = name.id }
-    | TPat_Tuple { elements } -> Pat_Tuple (List.map desugar_pattern elements)
+        let qname = lebind_expr_rename env name in
+        ( Pat_Ident { name = qname; path = name.path; id = name.id },
+          { env with bind_subst = StringMap.add name.name qname env.bind_subst }
+        )
+    | TPat_Tuple { elements } ->
+        let env', elements' =
+          List.fold_left_map
+            (fun e sp ->
+              let p', e' = desugar_pattern e sp in
+              (e', p'))
+            env elements
+        in
+        (Pat_Tuple elements', env')
     | TPat_Record { fields } ->
-        Pat_Record
-          (List.map
-             (fun (f : Typed_ast.pattern_record_field) ->
-               {
-                 field_idx = f.field_idx;
-                 pattern = Option.map desugar_pattern f.pattern;
-               })
-             fields)
+        let env', fields' =
+          List.fold_left_map
+            (fun e (f : Typed_ast.pattern_record_field) ->
+              let pattern', e' =
+                match f.pattern with
+                | Some sp ->
+                    let p', e'' = desugar_pattern e sp in
+                    (Some p', e'')
+                | None -> (None, e)
+              in
+              (e', { field_idx = f.field_idx; pattern = pattern' }))
+            env fields
+        in
+        (Pat_Record fields', env')
     | TPat_Constructor { tag; pattern } ->
-        Pat_Constructor { tag; pattern = Option.map desugar_pattern pattern }
-    | TPat_Any -> Pat_Any
+        let pattern', env' =
+          match pattern with
+          | Some sp ->
+              let p', e' = desugar_pattern env sp in
+              (Some p', e')
+          | None -> (None, env)
+        in
+        (Pat_Constructor { tag; pattern = pattern' }, env')
+    | TPat_Any -> (Pat_Any, env)
   in
-  { id; node }
+  ({ id; node }, env')
 
 let desugar_lambda_params (env : env) (params : Typed_ast.param list) :
     ident list * env =
@@ -349,14 +373,13 @@ let rec desugar_expr (env : env) (e : Typed_ast.expr) : expr * env =
         let cases' =
           List.map
             (fun (c : Typed_ast.pattern_case) ->
+              let pattern', e = desugar_pattern env c.pattern in
               {
                 id = c.id;
-                pattern = desugar_pattern c.pattern;
+                pattern = pattern';
                 when_condition =
-                  Option.map
-                    (fun w -> fst (desugar_expr env w))
-                    c.when_condition;
-                body = fst (desugar_expr env c.body);
+                  Option.map (fun w -> fst (desugar_expr e w)) c.when_condition;
+                body = fst (desugar_expr e c.body);
               })
             cases
         in
