@@ -1,23 +1,34 @@
 (test
  (name cyclic_components)
+ (modules cyclic_components)
  (libraries helpers))
 
 (test
  (name collect_closures)
+ (modules collect_closures)
  (libraries helpers syli_core))
 
 (test
  (name closure_analysis)
+ (modules closure_analysis)
  (libraries syli_core))
 
 (test
  (name cfg)
+ (modules cfg)
  (libraries syli_ir))
 
 (test
  (name closure_graph_test)
+ (modules closure_graph_test)
  (libraries syli_ir middle_end))
 
 (test
  (name liveness_test)
+ (modules liveness_test)
  (libraries syli_ir middle_end))
+
+(test
+ (name pattern_matching)
+ (modules pattern_matching)
+ (libraries middle_end syli_core syli_parsing syli_typing))
